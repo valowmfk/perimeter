@@ -274,7 +274,7 @@ def provision_vyos_vm(
 
     # Subnet-aware gateway/DNS lookup
     from config import subnet_for_ip
-    subnet_info = subnet_for_ip(ip_raw)
+    subnet_info = subnet_for_ip(ip)
     gateway = env.get("LINUX_GATEWAY") or (subnet_info["gateway"] if subnet_info else "10.1.55.254")
     dns_env = env.get("LINUX_DNS_SERVERS", "")
     if dns_env:
