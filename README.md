@@ -1,124 +1,240 @@
-# Q Branch Automation Platform
+<p align="center">
+  <img src="web/static/assets/perimeter/perimeter-logo.svg" alt="Perimeter" width="128" height="128">
+</p>
 
-Homelab automation platform for provisioning and managing virtual machines on Proxmox VE, with integrated DNS, IPAM, certificate management, and configuration management.
+<h1 align="center">Perimeter</h1>
+<p align="center"><strong>Automation Platform for Homelab Infrastructure</strong></p>
+
+<p align="center">
+  Provision VMs, manage certificates, orchestrate Ansible playbooks, build SLB configurations on A10 vThunders, and monitor it all from a single web interface.
+</p>
+
+---
+
+## What is Perimeter?
+
+Perimeter is a self-hosted automation platform built for homelab and small infrastructure environments. It provides a unified web UI for:
+
+- **VM Provisioning** — Clone Proxmox templates via Terraform with cloud-init. Supports Linux, VyOS, and A10 vThunder ACOS.
+- **Ansible Orchestration** — Run playbooks against your inventory directly from the browser.
+- **Certificate Management** — Issue and renew Let's Encrypt certificates via Certbot, deploy to Linux hosts or A10 vThunders.
+- **DNS Management** — Create and manage local DNS records via Pi-hole v6 API.
+- **IPAM** — Track IP address allocations in Netbox.
+- **vThunder SLB Manager** — Build and tear down VIPs, service groups, health monitors, and SSL templates on A10 load balancers via aXAPI.
+- **Template Refresh** — Automated template maintenance: clone, boot, update, clean, re-template.
+- **Monitoring** — Prometheus `/metrics` endpoint with a pre-built Grafana dashboard.
+
+Every feature is **modular** — enable only what you need via environment variables. No feature dependencies; disable DNS, IPAM, or vThunder management without affecting core VM operations.
+
+## Screenshots
+
+*Coming soon*
+
+## Quick Start
+
+### Prerequisites
+
+- A **Proxmox VE** cluster (8.x or 9.x) with API access
+- A **Rocky Linux 9**, **RHEL 9**, **Ubuntu 22.04+**, or **Debian 12+** server to run Perimeter
+- VM templates in Proxmox with **cloud-init** and **QEMU guest agent** enabled
+
+### Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/valowmfk/perimeter/main/installer/install.sh | sudo bash
+```
+
+The installer will:
+1. Install system dependencies (Python, Terraform, Ansible, SOPS, Age)
+2. Clone the repository to `/opt/perimeter/`
+3. Launch an interactive setup wizard
+
+The setup wizard guides you through:
+- Service user creation
+- Feature selection (choose which modules to enable)
+- Proxmox API token creation (automatic)
+- Network/subnet configuration
+- SSH key generation
+- Credential collection for enabled features
+- Secret encryption with SOPS + Age
+- Systemd service installation
+
+### Manual Install
+
+```bash
+git clone https://github.com/valowmfk/perimeter.git /opt/perimeter
+cd /opt/perimeter
+pip3 install -r requirements.txt
+sudo python3 installer/setup.py --install-dir /opt/perimeter
+```
 
 ## Architecture
 
 ```
-Flask Web UI (qbranch_app.py)
-    ├── routes/           # 6 Flask blueprints (vms, playbooks, certificates, dns, system, network)
-    ├── python/
-    │   ├── workflows/    # Provisioning orchestration (Linux VMs, A10 vThunders)
-    │   ├── helpers/      # DNS (Pi-hole v6), IPAM (Netbox), cert upload (aXAPI)
-    │   ├── utils/        # SOPS env loader, tfvars I/O, Terraform runner
-    │   └── axapi/        # A10 ACOS aXAPI client library
-    ├── terraform/        # IaC modules (linux_vm, vthunder_vm, vyos_vm)
-    ├── playbooks/        # Ansible playbooks (bootstrap, cert deploy, SSH keys)
-    └── web/              # Frontend (ES modules, dark theme UI)
+Perimeter (Flask)
+├── Web UI (single-page app)
+│   ├── VM Provisioning drawer
+│   ├── Ansible Orchestration drawer
+│   ├── Certificate Management drawer
+│   ├── DNS Management drawer
+│   ├── IPAM drawer
+│   └── vThunder SLB Manager drawer
+│
+├── Backend (Flask blueprints)
+│   ├── core_bp — UI serving (always on)
+│   ├── vms_bp — VM lifecycle (always on)
+│   ├── network_bp — Subnet/DNS API (always on)
+│   ├── playbooks_bp — Ansible execution (toggleable)
+│   ├── certificates_bp — Cert management (toggleable)
+│   └── system_bp — vThunder/Proxmox (toggleable)
+│
+├── Workflows (subprocess workers)
+│   ├── provision_linux.py
+│   ├── provision_vthunder.py
+│   ├── provision_vyos.py
+│   ├── bootstrap_linux.py
+│   ├── bootstrap_vthunder.py
+│   ├── destroy_vm.py
+│   └── refresh_template.py
+│
+├── Terraform (IaC)
+│   ├── modules/linux_vm
+│   ├── modules/vthunder_vm
+│   └── modules/vyos_vm
+│
+└── Integrations
+    ├── Proxmox API (VM management)
+    ├── A10 aXAPI v3 (vThunder configuration)
+    ├── Pi-hole v6 API (DNS records)
+    ├── Netbox API (IPAM tracking)
+    ├── Loki (audit logging)
+    └── Prometheus (metrics)
 ```
 
-## What It Does
+## Feature Toggles
 
-- **VM Provisioning**: Create Linux VMs and A10 vThunder appliances on Proxmox via Terraform, with automatic DNS registration (Pi-hole), IPAM tracking (Netbox), and Ansible bootstrap
-- **VM Lifecycle**: Protect, re-bootstrap, destroy VMs with full cleanup (Terraform destroy + DNS/IPAM/inventory removal)
-- **Certificate Management**: Issue, deploy, and manage TLS certificates via Certbot, with automated deployment to vThunder load balancers
-- **Ansible Orchestration**: Run playbooks against inventory groups from the web UI with streaming terminal output
-- **DNS Management**: Create/delete Pi-hole DNS records with nebula-sync replication
-- **IPAM**: Query Netbox for available IPs, auto-register on provision, auto-remove on destroy
+Every optional module can be enabled or disabled via environment variables:
 
-## Stack
+| Variable | Default | Module |
+|----------|---------|--------|
+| `PERIMETER_FEATURE_ANSIBLE` | `1` | Ansible Orchestration |
+| `PERIMETER_FEATURE_CERTS` | `1` | Certificate Management |
+| `PERIMETER_FEATURE_DNS` | `1` | DNS Management (Pi-hole) |
+| `PERIMETER_FEATURE_IPAM` | `1` | IPAM (Netbox) |
+| `PERIMETER_FEATURE_VTHUNDER` | `1` | vThunder SLB Manager |
+| `PERIMETER_FEATURE_AUDIT` | `1` | Audit Logging (Loki) |
 
-| Layer | Technology |
-|-------|-----------|
-| Web Framework | Flask 3.x with Blueprints |
-| Frontend | Vanilla JS (ES modules), CSS custom properties |
-| IaC | Terraform (BPG Proxmox provider) |
-| Config Mgmt | Ansible |
-| Secrets | SOPS + Age encryption |
-| DNS | Pi-hole v6 REST API |
-| IPAM | Netbox REST API |
-| Hypervisor | Proxmox VE |
-| Auth | Traefik ForwardAuth (edge) + audit logging (Loki) |
+Set to `0` to disable. Features are set in the systemd service file or as environment variables.
 
-## Setup
+When a feature is disabled:
+- Its Flask blueprint is not registered (no API routes)
+- Its UI drawer is not rendered (no HTML sent to browser)
+- Its JavaScript module is not initialized
+- Provision workflows skip DNS/IPAM steps gracefully
+
+## Configuration
+
+### Secrets
+
+All sensitive configuration is encrypted with [SOPS](https://github.com/getsops/sops) + [Age](https://github.com/FiloSottile/age). The installer handles key generation and encryption automatically.
+
+Secrets are stored in `secrets/automation-demo.enc.env` and decrypted at runtime by the application.
+
+### Subnets
+
+Multiple subnets are supported. Configure in `python/config.py`:
+
+```python
+SUBNETS = {
+    "10.1.55.0/24": {"gateway": "10.1.55.254", "dns": ["10.1.55.10", "10.1.55.11"]},
+    "10.255.0.0/24": {"gateway": "10.255.0.1", "dns": ["10.1.55.10", "10.1.55.11"]},
+}
+```
+
+The UI provides a subnet dropdown during VM creation, with IP validation against the selected subnet.
+
+### Proxmox Templates
+
+Perimeter auto-discovers templates from Proxmox. Templates are routed by naming convention:
+
+| Template prefix | Workflow | Resources |
+|----------------|----------|-----------|
+| `acos*` | vThunder | Template-defined (fixed) |
+| `vyos*` | VyOS | Template-defined (fixed) |
+| Everything else | Linux | User-configurable (CPU/RAM/Disk) |
+
+Templates must have **cloud-init** and **QEMU guest agent** enabled.
+
+## Monitoring
+
+### Prometheus
+
+Perimeter exposes a `/metrics` endpoint with:
+
+- `perimeter_http_requests_total` — HTTP request count by method/endpoint/status
+- `perimeter_http_request_duration_seconds` — Request duration histogram
+- `perimeter_vm_provisions_total` — VM provisioning by type/status
+- `perimeter_playbook_runs_total` — Playbook execution count
+- `perimeter_cert_deploys_total` — Certificate deployments
+- `perimeter_vip_operations_total` — VIP create/destroy operations
+- `perimeter_template_refreshes_total` — Template refresh operations
+
+Add to your Prometheus scrape config:
+
+```yaml
+- job_name: 'perimeter'
+  static_configs:
+    - targets: ['<perimeter-ip>:8080']
+```
+
+### Grafana
+
+A pre-built dashboard is available at `grafana/perimeter-dashboard.json`. Import via Grafana UI → Dashboards → Import.
+
+## Service Management
 
 ```bash
-# Install Python dependencies
-pip install -r requirements.txt
+# View logs
+journalctl -u perimeter -f
 
-# Decrypt secrets (requires Age key at ~/.config/sops/age/keys.txt)
-sops -d secrets/automation-demo.enc.env
+# Restart
+sudo systemctl restart perimeter
 
-# Initialize Terraform providers
-cd terraform/linux_vm && terraform init
-cd terraform/vthunder_vm && terraform init
+# Status
+sudo systemctl status perimeter
 
-# Run the application
-python qbranch_app.py
+# Edit feature toggles
+sudo systemctl edit perimeter
+# Add: Environment=PERIMETER_FEATURE_IPAM=0
+sudo systemctl restart perimeter
 ```
 
-The app runs on port 5000 by default, managed via systemd in production.
-
-## Testing
+## Development
 
 ```bash
-# Run all tests
-python -m pytest
+# Run locally (development mode)
+cd /opt/perimeter
+python3 qbranch_app.py
 
-# With coverage
-python -m pytest --cov=python --cov=routes --cov-report=term-missing
+# Run tests
+pytest tests/
 ```
 
-## Project Structure
+## Tech Stack
 
-```
-automation-demo/
-├── qbranch_app.py              # Flask app factory + entry point
-├── python/
-│   ├── config.py               # Centralized config dataclass
-│   ├── axapi/                   # A10 aXAPI client (context manager pattern)
-│   ├── helpers/
-│   │   ├── dns_manager.py      # Pi-hole v6 DNS CRUD
-│   │   ├── netbox_ipam.py      # Netbox IP management
-│   │   └── upload_cert_to_vthunder.py
-│   ├── utils/
-│   │   ├── sops_env.py         # SOPS-encrypted env file loader
-│   │   ├── tfvars_io.py        # Atomic tfvars read/write with file locking
-│   │   ├── terraform_runner.py # Terraform init/apply/output helpers
-│   │   └── vm_track.py         # VM cleanup state tracking
-│   └── workflows/
-│       ├── provision_linux.py   # Linux VM provisioning orchestration
-│       ├── provision_vthunder.py # vThunder provisioning orchestration
-│       ├── destroy_vm.py        # Full VM teardown chain
-│       ├── bootstrap_linux.py   # SSH wait + Ansible bootstrap
-│       ├── bootstrap_vthunder.py # aXAPI bootstrap (password, syslog, SSH key)
-│       └── dhcp_scanner.py      # DHCP IP discovery for vThunders
-├── routes/
-│   ├── shared.py               # Validation, helpers, shared state
-│   ├── vms_bp.py               # VM CRUD + protection + cleanup
-│   ├── playbooks_bp.py         # Ansible playbook execution
-│   ├── certificates_bp.py      # Certificate management
-│   ├── network_bp.py           # DNS + IPAM
-│   ├── system_bp.py            # Health, bridges, templates
-│   ├── core_bp.py              # Static file serving
-│   └── audit.py                # Audit logging to Loki
-├── terraform/
-│   ├── linux_vm/               # Linux VM workspace
-│   ├── vthunder_vm/            # vThunder workspace
-│   └── modules/                # Reusable TF modules
-├── playbooks/                  # Ansible playbooks
-├── inventories/                # Ansible inventory files
-├── secrets/                    # SOPS-encrypted credentials
-├── web/
-│   ├── static/
-│   │   ├── js/
-│   │   │   ├── app.js          # Entry point + event delegation
-│   │   │   ├── modules/        # Feature modules (vms, ansible, certs, dns, ipam, telemetry, themes)
-│   │   │   └── utils/          # Shared utilities (dom, ansi, modal, busy)
-│   │   └── style.css
-│   └── templates/
-│       └── index.html
-├── tests/                      # pytest test suite
-├── scripts/                    # Operational scripts
-└── .github/workflows/ci.yml   # GitHub Actions (test + lint)
-```
+- **Backend**: Python 3.9+, Flask
+- **Frontend**: Vanilla JavaScript (ES modules), CSS
+- **IaC**: Terraform (BPG Proxmox provider)
+- **Config Management**: Ansible
+- **Secrets**: SOPS + Age encryption
+- **Monitoring**: Prometheus + Grafana
+- **Audit**: Loki
+- **Service**: systemd
+
+## License
+
+*TBD*
+
+## Contributing
+
+*TBD*

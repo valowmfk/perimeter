@@ -1,0 +1,62 @@
+---
+# Auto-generated playbook for deploying common name certificate
+# Certificate: [[ domain ]]
+# Generated: [[ timestamp ]]
+
+- name: Deploy Common Name Certificate to Linux Host
+  # Common inventory groups for single-host certificates:
+  #   Specify individual host by FQDN (e.g., docker-prod.home.klouda.co)
+  #   Or use group if cert applies to multiple hosts
+  hosts: all  # CUSTOMIZE: Change to specific host or group
+  become: yes
+
+  vars:
+    domain: "[[ domain ]]"
+    cert_source_dir: "/etc/letsencrypt/live/[[ domain ]]"
+    cert_dest_dir: "/etc/ssl/[[ domain ]]"
+
+  tasks:
+    - name: Create certificate destination directory
+      file:
+        path: "{{ cert_dest_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy fullchain certificate
+      copy:
+        src: "{{ cert_source_dir }}/fullchain.pem"
+        dest: "{{ cert_dest_dir }}/fullchain.pem"
+        mode: '0644'
+      notify: restart_web_services
+
+    - name: Copy private key
+      copy:
+        src: "{{ cert_source_dir }}/privkey.pem"
+        dest: "{{ cert_dest_dir }}/privkey.pem"
+        mode: '0600'
+      notify: restart_web_services
+
+    - name: Copy certificate chain
+      copy:
+        src: "{{ cert_source_dir }}/chain.pem"
+        dest: "{{ cert_dest_dir }}/chain.pem"
+        mode: '0644'
+      notify: restart_web_services
+
+    - name: Copy certificate only
+      copy:
+        src: "{{ cert_source_dir }}/cert.pem"
+        dest: "{{ cert_dest_dir }}/cert.pem"
+        mode: '0644'
+      notify: restart_web_services
+
+  handlers:
+    - name: restart_web_services
+      service:
+        name: "{{ item }}"
+        state: restarted
+      loop:
+        - nginx
+        # - apache2
+        # - httpd
+      # Uncomment services as needed, or add custom restart commands

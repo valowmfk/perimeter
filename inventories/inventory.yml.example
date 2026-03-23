@@ -1,0 +1,6 @@
+# Example inventory — the installer generates this automatically.
+# See installer/templates/inventory.j2 for the full template.
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
