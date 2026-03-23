@@ -180,8 +180,8 @@ def screen_welcome(install_dir: str) -> Dict[str, str]:
 
     # SOPS
     try:
-        result = run_cmd(["sops", "--version"], check=False)
-        sops_ver = result.stdout.strip() if result.returncode == 0 else "not found"
+        result = run_cmd(["sops", "--version", "--disable-version-check"], check=False)
+        sops_ver = result.stdout.strip().split("\n")[0] if result.returncode == 0 else "not found"
     except Exception:
         sops_ver = "not found"
         all_ok = False
