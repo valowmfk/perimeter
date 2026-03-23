@@ -28,11 +28,11 @@ DNS_DOMAIN = cfg.DNS_DOMAIN
 PIHOLE_API_URL = os.getenv("PIHOLE_API_URL", "http://10.1.55.9")
 PIHOLE_API_PASSWORD = os.getenv("PIHOLE_API_PASSWORD", "")
 
-SSH_KEY = str(Path.home() / ".ssh" / "ansible_qbranch")
+SSH_KEY = os.getenv("PERIMETER_SSH_KEY", str(Path.home() / ".ssh" / "ansible_qbranch"))
 
 NEBULA_SYNC = {
-    "host": "10.1.55.9",
-    "container": "nebula-sync",
+    "host": os.getenv("NEBULA_SYNC_HOST", ""),
+    "container": os.getenv("NEBULA_SYNC_CONTAINER", "nebula-sync"),
 }
 
 
@@ -306,9 +306,13 @@ def _pihole_find_cname_by_alias(alias: str) -> list[tuple[str, str]]:
 # ────────────────────────────────────────────
 
 def _trigger_nebula_sync() -> bool:
-    """Restart nebula-sync container to trigger immediate replication."""
+    """Restart nebula-sync container to trigger immediate replication.
+    Skips silently if NEBULA_SYNC_HOST is not configured."""
     host = NEBULA_SYNC["host"]
     container = NEBULA_SYNC["container"]
+
+    if not host:
+        return True  # No sync configured — not an error
 
     try:
         subprocess.run(
