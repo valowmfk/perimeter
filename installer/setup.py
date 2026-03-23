@@ -22,6 +22,12 @@ from typing import Any, Dict, List, Optional
 
 VERSION = "3.0"
 
+# Ensure common binary paths are in PATH (pip, sops, age install to these)
+_extra_paths = ["/usr/local/bin", os.path.expanduser("~/.local/bin")]
+for _p in _extra_paths:
+    if _p not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = f"{_p}:{os.environ.get('PATH', '')}"
+
 # ── Colors ────────────────────────────────────────────────
 CYAN = "\033[0;36m"
 GREEN = "\033[0;32m"
@@ -132,10 +138,10 @@ def verify_url(url: str, headers: Optional[Dict] = None, verify_ssl: bool = Fals
 def screen_welcome(install_dir: str) -> Dict[str, str]:
     """Display welcome screen and verify prerequisites."""
     print()
-    print(f"{BOLD}{CYAN}╔══════════════════════════════════════════════╗{NC}")
-    print(f"{BOLD}{CYAN}║        PERIMETER v{VERSION} — SETUP WIZARD        ║{NC}")
-    print(f"{BOLD}{CYAN}║       Automation Platform for Labs           ║{NC}")
-    print(f"{BOLD}{CYAN}╚══════════════════════════════════════════════╝{NC}")
+    print(f"{BOLD}{CYAN}╔════════════════════════════════════════════════╗{NC}")
+    print(f"{BOLD}{CYAN}║      PERIMETER v{VERSION} — SETUP WIZARD          ║{NC}")
+    print(f"{BOLD}{CYAN}║       Automation Platform for Labs             ║{NC}")
+    print(f"{BOLD}{CYAN}╚════════════════════════════════════════════════╝{NC}")
     print()
 
     prereqs = {}
@@ -972,9 +978,9 @@ def screen_start_service(features: Dict[str, bool], install_dir: str) -> None:
 
     # ── Summary ────────────────────────────────────
     print()
-    print(f"{BOLD}{CYAN}╔══════════════════════════════════════════════╗{NC}")
-    print(f"{BOLD}{CYAN}║         INSTALLATION COMPLETE ✓              ║{NC}")
-    print(f"{BOLD}{CYAN}╚══════════════════════════════════════════════╝{NC}")
+    print(f"{BOLD}{CYAN}╔════════════════════════════════════════════════╗{NC}")
+    print(f"{BOLD}{CYAN}║          INSTALLATION COMPLETE ✓               ║{NC}")
+    print(f"{BOLD}{CYAN}╚════════════════════════════════════════════════╝{NC}")
     print()
 
     # Detect IP
