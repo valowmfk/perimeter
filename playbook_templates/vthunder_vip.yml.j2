@@ -1,0 +1,57 @@
+---
+# Auto-generated playbook for uploading certificate to A10 vThunder
+# Certificate: [[ domain ]]
+# Generated: [[ timestamp ]]
+#
+# NOTE: This playbook ONLY uploads the certificate and key files.
+# SSL templates and VIP configuration are managed by 00-a10-build.yml
+
+- name: Upload Certificate to A10 vThunder
+  hosts: localhost
+  gather_facts: no
+  connection: local
+
+  vars:
+    domain: "[[ domain ]]"
+    cert_name: "[[ cert_name ]]"
+
+    # Extract base domain for directory structure (e.g., www.klouda.work -> klouda.work)
+    base_domain: "{{ domain.split('.')[-2:] | join('.') }}"
+    cert_source_dir: "/home/mklouda/automation-demo/certificates/{{ base_domain }}/live/[[ domain ]]"
+
+    # vThunder connection details
+    vthunder_host: "[[ vthunder_host ]]"
+    vthunder_username: "admin"
+    vthunder_password: "{{ lookup('pipe', '/home/mklouda/automation-demo/scripts/get-secret.sh VTH_ADMIN_PASS') }}"
+    vthunder_port: 443
+
+    # Partition
+    partition_name: "[[ partition ]]"
+
+  tasks:
+    - name: Upload certificate and key to vThunder
+      command: >
+        python3 /home/mklouda/automation-demo/python/helpers/upload_cert_to_vthunder.py
+        --host "{{ vthunder_host }}"
+        --port "{{ vthunder_port }}"
+        --username "{{ vthunder_username }}"
+        --password "{{ vthunder_password }}"
+        --partition "{{ partition_name }}"
+        --cert-name "{{ cert_name }}"
+        --cert-file "{{ cert_source_dir }}/fullchain.pem"
+        --key-file "{{ cert_source_dir }}/privkey.pem"
+      register: upload_result
+      changed_when: "'Success' in upload_result.stdout"
+
+    - name: Display upload result
+      debug:
+        var: upload_result.stdout_lines
+
+    - name: Summary
+      debug:
+        msg:
+          - "Certificate uploaded: {{ cert_name }}"
+          - "Key uploaded: {{ cert_name }}"
+          - "Partition: {{ partition_name }}"
+          - ""
+          - "To apply this certificate, run 00-a10-build.yml"
