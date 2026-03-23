@@ -724,7 +724,9 @@ def screen_write_config(
         tmp_path = tmp.name
 
     try:
-        run_cmd(["sops", "-e", "--input-type", "dotenv", "--output-type", "dotenv",
+        run_cmd(["sops", "--disable-version-check",
+                 "--age", age_public_key,
+                 "-e", "--input-type", "dotenv", "--output-type", "dotenv",
                  "-i", tmp_path], check=True,
                 env={**os.environ, "SOPS_AGE_KEY_FILE": str(age_key_path)})
         shutil.move(tmp_path, str(enc_env_path))
