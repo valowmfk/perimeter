@@ -210,4 +210,5 @@ echo ""
 echo -e "${BOLD}${CYAN}Bootstrap complete. Starting interactive setup...${NC}"
 echo ""
 
-python3 "$INSTALL_DIR/installer/setup.py" --install-dir "$INSTALL_DIR"
+# Re-open stdin from terminal (stdin is consumed by curl pipe)
+python3 "$INSTALL_DIR/installer/setup.py" --install-dir "$INSTALL_DIR" < /dev/tty
