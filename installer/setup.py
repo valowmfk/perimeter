@@ -625,9 +625,24 @@ def screen_feature_creds(features: Dict[str, bool]) -> Dict[str, str]:
 
     if features.get("dns"):
         header("Pi-hole DNS Configuration")
+
+        def _check_pihole(url: str) -> bool:
+            """Pi-hole v6 returns 403 on root — that's fine, means it's alive."""
+            try:
+                import urllib.request, ssl
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                urllib.request.urlopen(url, timeout=5, context=ctx)
+                return True
+            except urllib.error.HTTPError:
+                return True  # 403/404 = server is responding
+            except Exception:
+                return False
+
         creds["pihole_api_url"] = prompt_with_verify(
             "Pi-hole API URL", "http://pihole.local",
-            lambda url: verify_url(f"{url}/api"),
+            _check_pihole,
             fail_msg="Pi-hole unreachable",
         )
         creds["pihole_api_password"] = prompt_password("Pi-hole API Password")
