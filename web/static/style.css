@@ -1,0 +1,2099 @@
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600&display=swap');
+
+/* ── Z-Index Layer System ── */
+:root {
+    --z-header:       1000;
+    --z-flyout:       1050;
+    --z-toast:        1100;
+    --z-modal:        2000;
+    --z-confirm:      2500;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    font-family: 'Open Sans', sans-serif;
+}
+
+/* ── Skip Link (Accessibility) ── */
+.q-skip-link {
+    position: absolute;
+    top: -100%;
+    left: 16px;
+    z-index: 9999;
+    padding: 8px 16px;
+    background: #206bc4;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 0 0 4px 4px;
+    text-decoration: none;
+    transition: top 0.15s ease;
+}
+.q-skip-link:focus {
+    top: 0;
+}
+
+/* ── Focus Visible (Accessibility) ── */
+:focus-visible {
+    outline: 2px solid #60a5fa;
+    outline-offset: 2px;
+}
+button:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+input:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* ============================================================
+   GLOBAL THEMES + BLUEPRINT BACKGROUND
+   ============================================================ */
+
+body.dark {
+    background-color: #0d1423;
+    background-image:
+        linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+    color: #E1E5EA;
+}
+
+body.light {
+    background-color: #f4f4f7;
+    color: #111111;
+}
+
+/* (Legacy dashboard header styles removed — now using unified-header) */
+
+/* Toast */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #005CB9;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 6px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    z-index: var(--z-toast);
+}
+
+.toast.show {
+    opacity: 1;
+}
+
+/* (Legacy panel layout styles removed — now using q-container system) */
+
+/* Headings */
+h2 {
+    font-weight: 600;
+    color: #00A0DF;
+    margin-top: 0;
+}
+
+h3 {
+    margin-top: 0;
+}
+
+/* Inputs and selects (index.html only) */
+select,
+input[type="text"] {
+    width: 90%;
+    padding: 8px;
+    margin-bottom: 15px;
+    background-color: #1C2331;
+    color: #E1E5EA;
+    border: 1px solid #36465D;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+body.light select,
+body.light input[type="text"] {
+    background-color: #f4f4f7;
+    color: #111111;
+    border-color: #cccccc;
+}
+
+/* Inline row for select + button (index) */
+.inline-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Global button base */
+button {
+    padding: 10px 20px;
+    background-color: #005CB9;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 15px;
+    border-radius: 4px;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+button:hover {
+    background-color: #0077E6;
+    transform: translateY(-1px);
+}
+
+/* (Legacy mini-button removed — now using q-mini-btn) */
+
+/* Preformatted blocks (index) */
+pre {
+    background-color: #1C2331;
+    border: 1px solid #36465D;
+    padding: 10px;
+    overflow-y: auto;
+    font-size: 13px;
+}
+
+body.light pre {
+    background-color: #f4f4f7;
+    border-color: #cccccc;
+}
+
+/* (Legacy left-panel pre and #status removed) */
+
+/* Spinner */
+.spinner {
+    display: none;
+    margin: 10px 0;
+    width: 40px;
+    height: 40px;
+    animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); filter: drop-shadow(0 0 3px #005CB9); }
+    100% { transform: rotate(360deg); filter: drop-shadow(0 0 3px #00A0DF); }
+}
+
+/* (Legacy right-panel, output-panel, history-panel removed — now using q-terminal) */
+
+/* Log line coloring */
+.log-line {
+    font-family: monospace;
+}
+
+.log-ok {
+    color: #7CFC00;
+}
+
+.log-changed {
+    color: #FFD700;
+}
+
+.log-error {
+    color: #FF4500;
+}
+
+.log-info {
+    color: #E1E5EA;
+}
+
+body.light .log-info {
+    color: #111111;
+}
+
+/* (Legacy history-item and status-badge styles removed) */
+
+/* ============================================================
+   UNIFIED HEADER (Theme-Switchable)
+   ============================================================ */
+
+.unified-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: var(--z-header);
+    font-family: 'Open Sans', sans-serif;
+}
+
+/* Perimeter theme header styling */
+body.theme-perimeter .unified-header {
+    background: radial-gradient(circle at top left, #1f2937 0, #020617 50%, #000000 100%);
+    border-bottom: 2px solid #00e0ff;
+    color: #e5f6ff;
+}
+
+/* A10 theme header styling */
+body.theme-a10 .unified-header {
+    background-color: #1C2331;
+    border-bottom: 2px solid #00A0DF;
+    color: #E1E5EA;
+}
+
+.unified-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.unified-logo {
+    height: 50px;
+    width: auto;
+}
+
+/* Perimeter logo glow */
+body.theme-perimeter .unified-logo {
+    filter: drop-shadow(0 0 8px rgba(0, 224, 255, 0.6));
+}
+
+.unified-title-block {
+    display: flex;
+    flex-direction: column;
+}
+
+.unified-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+/* Perimeter title color */
+body.theme-perimeter .unified-title {
+    color: #e5f6ff;
+}
+
+/* A10 title color */
+body.theme-a10 .unified-title {
+    color: #00A0DF;
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.unified-subtitle {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+
+/* A10 subtitle styling */
+body.theme-a10 .unified-subtitle {
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.unified-header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+.unified-header-tag {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    opacity: 0.8;
+    white-space: nowrap;
+}
+
+/* Perimeter tag color */
+body.theme-perimeter .unified-header-tag {
+    color: #7df9ff;
+}
+
+/* A10 tag color */
+body.theme-a10 .unified-header-tag {
+    color: #00A0DF;
+}
+
+/* Theme selector dropdown */
+.theme-selector {
+    padding: 8px 14px;
+    background-color: #005CB9;
+    color: white;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.theme-selector:hover {
+    background-color: #0077E6;
+    box-shadow: 0 0 6px #00e5ff;
+    transform: translateY(-1px);
+}
+
+/* Perimeter theme selector */
+body.theme-perimeter .theme-selector {
+    background: rgba(15,23,42,0.85);
+    color: #cbd5e1;
+    border: 1px solid rgba(71,85,105,0.6);
+}
+
+body.theme-perimeter .theme-selector:hover {
+    background: rgba(30,41,59,1);
+    border-color: rgba(100,116,139,0.8);
+    box-shadow: none;
+}
+
+/* Content wrapper positioning */
+.unified-content {
+    margin-top: 90px;
+}
+
+/* Perimeter content with Proxmox strip */
+body.theme-perimeter .unified-content {
+    margin-top: 130px; /* 90px header + 40px strip */
+}
+
+/* ============================================================
+   Q BRANCH THEME (create_vm.html)
+   ============================================================ */
+
+.q-header {
+    position: fixed;
+    top: 0;
+    left:0;
+    right:0;
+    height: 90px;
+    background: radial-gradient(circle at top left, #1f2937 0, #020617 50%, #000000 100%);
+    border-bottom: 2px solid #00e0ff;
+    color: #e5f6ff;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 20px;
+    z-index: var(--z-header);
+    font-family:'Open Sans', sans-serif;
+}
+
+.q-header-left {
+    display:flex;
+    align-items:center;
+    gap:12px;
+}
+
+.q-logo {
+    height: 40px;
+    width:auto;
+    filter: drop-shadow(0 0 8px rgba(0, 224, 255, 0.6));
+}
+
+.q-title-block {
+    display:flex;
+    flex-direction:column;
+}
+
+.q-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.q-subtitle {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+
+.q-header-right {
+    display:flex;
+    align-items:center;
+    gap:12px;
+}
+
+.q-header-tag {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color:#7df9ff;
+    opacity:0.8;
+}
+
+/* Navigation button */
+.q-nav-btn {
+    padding: 8px 14px;
+    background-color: #00A0DF;
+    color: black;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    font-size: 14px;
+}
+
+.q-nav-btn:hover {
+    background-color: #00e5ff;
+    box-shadow: 0 0 6px #00e5ff;
+    transform: translateY(-1px);
+}
+
+/* Proxmox strip (fixed below header) */
+.q-proxmox-strip {
+    position: fixed;
+    top: 90px;               /* directly under 90px header */
+    left: 0;
+    right: 0;
+    height: 28px;
+    padding: 4px 20px;
+
+    display: flex;
+    align-items: center;
+    gap: 20px;
+
+    background: #0c1624;
+    border-bottom: 1px solid #009ec7;
+    color: #7feaff;
+
+    font-size: 13px;
+    z-index: var(--z-flyout);  /* under header, above content */
+}
+
+.q-strip-label {
+    font-weight:600;
+    color:#e5f6ff;
+}
+
+.q-strip-badge {
+    padding:3px 8px;
+    border-radius:999px;
+    font-weight:700;
+    text-transform:uppercase;
+    font-size:10px;
+}
+
+.q-strip-badge-ok {
+    background:rgba(34,197,94,0.15);
+    color:#bbf7d0;
+    border:1px solid rgba(34,197,94,0.7);
+}
+
+.q-strip-badge-warn {
+    background:rgba(234,179,8,0.15);
+    color:#facc15;
+    border:1px solid rgba(234,179,8,0.7);
+}
+
+.q-strip-badge-err {
+    background:rgba(239,68,68,0.18);
+    color:#fecaca;
+    border:1px solid rgba(239,68,68,0.8);
+}
+
+.q-strip-badge-unknown {
+    background:rgba(148,163,184,0.18);
+    color:#e5e7eb;
+    border:1px solid rgba(148,163,184,0.7);
+}
+
+.q-strip-separator {
+    opacity:0.5;
+    margin:0 8px;
+}
+
+.q-strip-meta-label {
+    font-size:12px;
+    opacity:0.7;
+    margin-right:4px;
+}
+
+.q-strip-meta {
+    opacity:0.8;
+}
+
+/* Main Q-Branch container */
+.q-container {
+    margin-top: 130px;       /* header (90) + strip (28) + air */
+    padding-top: 10px;
+    display:flex;
+    gap:20px;
+    padding-left:20px;
+    padding-right:20px;
+    padding-bottom:10px;     /* reduced from 20px to 10px */
+}
+
+.q-container-bottom {
+    padding-top: 0;
+    margin-top: 0;           /* ensure no extra margin */
+    padding-bottom: 40px;    /* space for drawer to extend */
+    margin-bottom: 20px;     /* allow page to extend when drawer opens */
+}
+
+/* Panels */
+.q-panel {
+    flex:1;
+    background: radial-gradient(circle at top left, #111827 0, #020617 45%, #020617 100%);
+    padding:20px;
+    border-radius:10px;
+    border:1px solid rgba(45,212,191,0.35);
+    box-shadow:0 0 30px rgba(56,189,248,0.2);
+    position:relative;
+    overflow:hidden;
+}
+
+.q-panel::before {
+    content:'';
+    position:absolute;
+    inset:-40%;
+    background:
+        radial-gradient(circle at 10% 0%, rgba(56,189,248,0.12) 0, transparent 55%),
+        radial-gradient(circle at 90% 100%, rgba(16,185,129,0.10) 0, transparent 60%);
+    opacity:0.4;
+    pointer-events:none;
+}
+
+.q-panel-slim {
+    flex:0 0 260px;
+}
+
+.q-panel-drawer-left {
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    background: radial-gradient(circle at top left, #111827 0, #020617 45%, #020617 100%);
+    padding:20px;
+    border-radius:10px;
+    border:1px solid rgba(45,212,191,0.35);
+    box-shadow:0 0 30px rgba(56,189,248,0.2);
+    position:relative;
+    overflow:hidden;  /* contain children */
+    min-height:0;     /* allow flexbox shrinking */
+}
+
+/* Container for accordion drawers */
+.q-panel-controls {
+    display:flex;
+    flex-direction:column;
+    flex:1;
+    min-height:0;
+    gap:8px;  /* space between drawer toggle buttons */
+    padding-bottom:20px;  /* prevent drawer from extending past panel edge */
+}
+
+.q-panel-drawer-left::before {
+    content:'';
+    position:absolute;
+    inset:-40%;
+    background:
+        radial-gradient(circle at 10% 0%, rgba(56,189,248,0.12) 0, transparent 55%),
+        radial-gradient(circle at 90% 100%, rgba(16,185,129,0.10) 0, transparent 60%);
+    opacity:0.4;
+    pointer-events:none;
+}
+
+/* Panel subtitle */
+.q-panel-subtitle {
+    font-size: 11px;
+    opacity: 0.7;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+/* Bottom narrow panel */
+.q-panel-wide {
+    flex:1 1 auto;
+}
+
+/* Inputs in Q-Branch panel */
+.q-input {
+    width:100%;
+    padding:8px;
+    margin-bottom:12px;
+    border-radius:4px;
+    background:#020617;
+    border:1px solid #1f2937;
+    color:#e5f2ff;
+    font-size:14px;
+    box-sizing:border-box;  /* include padding and border in width calculation */
+}
+
+.q-input:focus {
+    outline:none;
+    border-color:#38bdf8;
+    box-shadow:0 0 0 1px rgba(56,189,248,0.8);
+}
+
+/* Field row (label + mini button) */
+.q-field-row {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+}
+
+.q-hint {
+    font-size:11px;
+    opacity:0.7;
+}
+
+/* NIC configuration rows */
+.q-nic-row {
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:6px;
+}
+
+.q-nic-label {
+    font-size:12px;
+    color:rgba(255,255,255,0.7);
+    min-width:90px;
+}
+
+.q-nic-select {
+    flex:1;
+}
+
+#nicContainer {
+    margin-bottom:12px;
+    padding:8px;
+    background:rgba(0,0,0,0.2);
+    border-radius:6px;
+}
+
+/* Small generate button */
+.q-mini-btn {
+    padding:4px 10px;
+    font-size:11px;
+    border-radius:4px;
+    background:rgba(59,130,246,0.12);
+    border:1px solid rgba(59,130,246,0.4);
+    color:#93b4f5;
+    cursor:pointer;
+    transition:background 0.15s ease, border-color 0.15s ease;
+}
+
+.q-mini-btn:hover {
+    background:rgba(59,130,246,0.25);
+    border-color:rgba(59,130,246,0.6);
+}
+
+/* Primary Q button */
+.q-button {
+    width:100%;
+    padding:10px 16px;
+    background:#206bc4;
+    color:#fff;
+    font-weight:600;
+    border:none;
+    border-radius:4px;
+    cursor:pointer;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    font-size:12px;
+    transition:background 0.15s ease, box-shadow 0.15s ease;
+    box-sizing:border-box;
+}
+
+.q-button:hover {
+    background:#1a5baa;
+    box-shadow:0 1px 4px rgba(0,0,0,0.3);
+}
+
+/* Danger button variant */
+.q-danger {
+    background:#d63939;
+    color:#fff;
+}
+
+.q-danger:hover {
+    background:#b92d2d;
+    box-shadow:0 1px 4px rgba(0,0,0,0.3);
+}
+
+.q-promote {
+    background:#0d9488;
+    color:#fff;
+    font-size:11px;
+    padding:4px 10px;
+}
+.q-promote:hover {
+    background:#0f766e;
+    box-shadow:0 1px 4px rgba(0,0,0,0.3);
+}
+
+/* Busy button state */
+.q-btn-busy {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
+    position: relative;
+}
+.q-btn-busy::after {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-left: 8px;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: q-btn-spin 0.6s linear infinite;
+    vertical-align: middle;
+}
+@keyframes q-btn-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Status text */
+.q-status {
+    margin-top:10px;
+    font-weight:bold;
+    color:#7dd3fc;
+    min-height:18px;
+}
+
+/* Spinner animation */
+.q-spinner {
+    width: 16px;
+    height: 16px;
+    border: 3px solid rgba(94, 234, 212, 0.2);
+    border-top-color: #5eead4;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Divider line */
+.q-divider {
+    height:1px;
+    background:linear-gradient(90deg, transparent, rgba(148,163,184,0.4), transparent);
+    margin:10px 0 16px;
+}
+
+/* Terminal panel */
+.q-terminal {
+    flex:1;
+    background:#020617;
+    padding:0;
+    border-radius:10px;
+    border:1px solid rgba(56,189,248,0.35);
+    box-shadow:0 0 25px rgba(15,23,42,0.9);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+}
+
+/* Terminal header bar */
+.q-terminal-header {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:10px 14px;
+    background:linear-gradient(90deg,#020617,#0b1120);
+    border-bottom:1px solid rgba(51,65,85,0.9);
+}
+
+.q-terminal-title {
+    font-size:13px;
+    text-transform:uppercase;
+    letter-spacing:0.16em;
+    color:#9ca3af;
+}
+
+.q-terminal-meta {
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:11px;
+    color:#6b7280;
+}
+
+/* Status dot */
+.q-dot {
+    width:8px;
+    height:8px;
+    border-radius:999px;
+    display:inline-block;
+}
+
+.q-dot-green {
+    background:#22c55e;
+    box-shadow:0 0 10px rgba(34,197,94,0.9);
+}
+
+/* Terminal output area */
+.q-terminal pre {
+    margin:0;
+    padding:10px 12px;
+    height:70vh;
+    overflow-y:auto;
+    background:radial-gradient(circle at top left,#020617 0,#020617 70%,#000000 100%);
+    color:#e5f2ff;
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size:12px;
+}
+
+/* Table */
+.q-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 10px;
+}
+
+.q-table th,
+.q-table td {
+    border: 1px solid #1f2937;
+    padding: 6px 8px;
+    text-align: left;
+}
+
+body.light .q-table th,
+body.light .q-table td {
+    border-color: #cccccc;
+}
+
+.q-table th {
+    background-color: #020617;
+    color:#e5f2ff;
+}
+
+body.light .q-table th {
+    background-color: #f0f0f0;
+}
+
+/* Row hover glow */
+.q-table tbody tr {
+    transition:background-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+}
+
+.q-table tbody tr:hover {
+    background-color: rgba(15,23,42,0.9);
+    box-shadow:0 0 12px rgba(56,189,248,0.25);
+    transform:translateY(-1px);
+}
+
+/* Q-Badge base */
+.q-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+/* Dark-mode palette */
+.q-badge-green {
+    background: rgba(0, 200, 120, 0.18);
+    color: #7fffd4;
+    border: 1px solid rgba(0, 255, 180, 0.4);
+}
+
+.q-badge-red {
+    background: rgba(220, 20, 60, 0.20);
+    color: #ffb3c1;
+    border: 1px solid rgba(255, 80, 120, 0.5);
+}
+
+.q-badge-yellow {
+    background: rgba(255, 215, 0, 0.18);
+    color: #ffe27f;
+    border: 1px solid rgba(255, 215, 0, 0.5);
+}
+
+.q-badge-grey {
+    background: rgba(128, 128, 128, 0.18);
+    color: #d0d0d0;
+    border: 1px solid rgba(160, 160, 160, 0.5);
+}
+
+/* Table refresh glow */
+.q-refresh {
+    animation: qRefreshGlow 0.5s ease-out;
+}
+
+@keyframes qRefreshGlow {
+    0% {
+        box-shadow: 0 0 0 rgba(0, 255, 180, 0.0);
+    }
+    50% {
+        box-shadow: 0 0 18px rgba(0, 255, 180, 0.35);
+    }
+    100% {
+        box-shadow: 0 0 0 rgba(0, 255, 180, 0.0);
+    }
+}
+
+/* Existing VMID list */
+.q-list {
+    font-size: 13px;
+    padding-left: 20px;
+    max-height: 260px;
+    overflow-y:auto;
+}
+
+/* Make VMID list extend with flexible height inside provision drawer */
+#vmidList {
+    flex: 1;
+    max-height: none;
+    overflow-y: auto;
+    margin: 0;
+    padding-left: 20px;
+    min-height: 0;
+}
+
+/* Make slim panel position relative for absolute positioning of list */
+.q-provision-content > .q-panel-slim {
+    position: relative;
+}
+
+/* Scrollbar styling for VMID list */
+.q-provision-content .q-list::-webkit-scrollbar,
+#vmidList::-webkit-scrollbar {
+    width: 8px;
+}
+.q-provision-content .q-list::-webkit-scrollbar-track,
+#vmidList::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 999px;
+}
+.q-provision-content .q-list::-webkit-scrollbar-thumb,
+#vmidList::-webkit-scrollbar-thumb {
+    background: rgba(94, 234, 212, 0.4);
+    border-radius: 999px;
+}
+.q-provision-content .q-list::-webkit-scrollbar-thumb:hover,
+#vmidList::-webkit-scrollbar-thumb:hover {
+    background: rgba(94, 234, 212, 0.7);
+}
+
+/* Telemetry drawer */
+.q-telemetry-container {
+    margin-top:16px;
+}
+
+.q-telemetry-toggle {
+    width:100%;
+    padding:8px 12px;
+    border-radius:4px;
+    background:rgba(15,23,42,0.85);
+    border:1px solid rgba(71,85,105,0.6);
+    color:#cbd5e1;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    cursor:pointer;
+    transition:background 0.15s ease, border-color 0.15s ease;
+}
+
+.q-telemetry-toggle:hover {
+    background:rgba(30,41,59,1);
+    border-color:rgba(100,116,139,0.8);
+}
+
+.q-drawer-label {
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    text-align:left;
+}
+
+.q-drawer-label .q-drawer-icon {
+    width:16px;
+    height:16px;
+    flex-shrink:0;
+}
+
+.q-mission-timer {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    background:rgba(15,23,42,0.7);
+    border-radius:4px;
+    padding:3px 8px;
+    border:1px solid rgba(71,85,105,0.5);
+    color:#94a3b8;
+    font-size:10px;
+}
+
+.q-telemetry-drawer {
+    margin-top:8px;
+    max-height:0;
+    overflow:hidden;
+    transition:max-height 0.25s ease;
+}
+
+.q-telemetry-drawer.open {
+    max-height:800px;   /* allow drawer to extend for large content */
+}
+
+/* VM Provisioning Drawer - accordion style, fills available space when open */
+.q-provision-drawer {
+    margin-top:8px;
+    max-height:0;
+    overflow:hidden;
+    transition:max-height 0.3s ease, opacity 0.3s ease;
+    opacity:0;
+    flex:0;  /* when closed, take no space */
+}
+
+.q-provision-drawer.open {
+    max-height:none;     /* no max limit */
+    overflow:visible;
+    opacity:1;
+    flex:1;              /* when open, fill available space */
+    display:flex;
+    flex-direction:column;
+}
+
+.q-provision-content {
+    display:flex;
+    gap:20px;
+    padding:10px;
+    padding-bottom:20px;
+    flex-direction:row;
+    flex:1;              /* fill parent drawer */
+    min-height:0;        /* allow flexbox shrinking */
+}
+
+/* Panels inside provision drawer extend full height */
+.q-provision-content > .q-panel {
+    display:flex;
+    flex-direction:column;
+    flex:1;              /* allow main panel to grow */
+    height:100%;         /* full height of content area */
+    overflow:hidden;     /* prevent panel itself from scrolling */
+}
+
+.q-provision-content > .q-panel-slim {
+    display:flex;
+    flex-direction:column;
+    flex:0 0 220px;      /* reduced width for slim panel, giving more space to main panel */
+    height:100%;         /* full height of content area */
+    overflow:hidden;     /* prevent panel itself from scrolling */
+    position:relative;   /* for absolute positioning of list inside */
+}
+
+/* Headers in provision panels should not grow */
+.q-provision-content .q-panel > h2,
+.q-provision-content .q-panel > h3,
+.q-provision-content .q-panel-slim > h3,
+.q-provision-content .q-panel > .q-divider,
+.q-provision-content .q-panel-slim > .q-panel-subtitle,
+.q-provision-content .q-panel > label,
+.q-provision-content .q-panel > select,
+.q-provision-content .q-panel > .q-field-row,
+.q-provision-content .q-panel > input {
+    flex-shrink: 0;
+    flex-grow: 0;
+}
+
+/* Make provision form fields container extend and scroll if needed */
+.q-provision-content .q-panel > #provisionFields {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;      /* scroll if content too long */
+    min-height: 0;
+    scrollbar-width: thin;
+}
+
+/* Scrollbar styling for provision fields */
+.q-provision-content .q-panel > #provisionFields::-webkit-scrollbar {
+    width: 6px;
+}
+.q-provision-content .q-panel > #provisionFields::-webkit-scrollbar-thumb {
+    background: rgba(94, 234, 212, 0.4);
+    border-radius: 999px;
+}
+.q-provision-content .q-panel > #provisionFields::-webkit-scrollbar-thumb:hover {
+    background: rgba(94, 234, 212, 0.7);
+}
+
+/* Telemetry container should be at the bottom */
+.q-provision-content .q-telemetry-container {
+    margin-top: auto;
+    flex-shrink: 0;
+}
+
+.q-telemetry {
+    list-style:none;
+    margin:0;
+    padding:8px 10px;
+    border-radius:8px;
+    background:rgba(15,23,42,0.95);
+    border:1px solid rgba(31,41,55,0.9);
+    font-size:12px;
+
+    max-height:240px;        /* ensures smooth room inside drawer */
+    overflow-y:auto;         /* internal scrolling */
+    scrollbar-width: thin;   /* Firefox */
+}
+
+/* Optional: prettier scrollbars (Chrome, Edge, Brave) */
+.q-telemetry::-webkit-scrollbar {
+    width: 6px;
+}
+.q-telemetry::-webkit-scrollbar-thumb {
+    background: rgba(94, 234, 212, 0.4);
+    border-radius: 999px;
+}
+.q-telemetry::-webkit-scrollbar-thumb:hover {
+    background: rgba(94, 234, 212, 0.7);
+}
+
+
+.q-telemetry li {
+    padding:3px 0;
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+}
+
+/* Small label / value columns */
+.q-telemetry-label {
+    opacity:0.7;
+}
+
+.q-telemetry-value {
+    font-family:"JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Responsive layout */
+@media (max-width: 1100px) {
+    .q-container {
+        flex-direction:column;
+    }
+}
+
+/* === Q BRANCH ANSIBLE & CERTIFICATE DRAWER STYLES === */
+
+/* Ansible Inventory Summary */
+.q-inventory-summary {
+    background-color: rgba(0, 160, 223, 0.1);
+    border-left: 3px solid #00A0DF;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 4px;
+}
+
+.q-summary-line {
+    font-size: 13px;
+    color: #E1E5EA;
+    margin-bottom: 8px;
+    font-family: 'Courier New', monospace;
+}
+
+.q-summary-hosts {
+    font-size: 12px;
+    color: #00A0DF;
+    margin-top: 10px;
+    font-family: 'Courier New', monospace;
+}
+
+/* Certificate Preview Panel */
+.q-cert-preview-panel {
+    background-color: rgba(0, 160, 223, 0.1);
+    border: 1px solid #00A0DF;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.q-cert-preview-header {
+    font-size: 13px;
+    font-weight: bold;
+    color: #00A0DF;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.q-cert-preview-content {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: #E1E5EA;
+    line-height: 1.6;
+}
+
+/* Certificate Info Panel */
+.q-cert-info-panel {
+    background-color: rgba(54, 70, 93, 0.3);
+    border: 1px solid #36465D;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.q-cert-info-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 13px;
+}
+
+.q-cert-info-row:last-child {
+    margin-bottom: 0;
+}
+
+.q-cert-info-label {
+    color: #8B96A5;
+    font-weight: 500;
+}
+
+.q-cert-status-badge {
+    background-color: rgba(0, 160, 223, 0.2);
+    color: #00A0DF;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+/* Certificate Advanced Toggle */
+.q-cert-advanced-toggle {
+    cursor: pointer;
+    color: #00A0DF;
+    font-size: 13px;
+    margin: 15px 0;
+    user-select: none;
+    transition: color 0.2s ease;
+}
+
+.q-cert-advanced-toggle:hover {
+    color: #00C8FF;
+}
+
+/* Certificate Strip Toggle */
+.q-cert-strip-toggle {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: background 0.15s ease;
+    position: relative;
+}
+.q-cert-strip-toggle:hover {
+    background: rgba(0, 158, 199, 0.15);
+}
+.q-cert-strip-chevron {
+    font-size: 10px;
+    opacity: 0.6;
+    margin-left: 4px;
+}
+
+/* Certificate Flyout Panel */
+.q-cert-flyout {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 6px;
+    width: 720px;
+    max-height: 420px;
+    overflow-y: auto;
+    background: #0c1624;
+    border: 1px solid #009ec7;
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    z-index: var(--z-toast);
+    font-size: 13px;
+}
+.q-cert-flyout-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(0,158,199,0.3);
+    font-weight: 600;
+    color: #e5f6ff;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.q-cert-flyout-summary {
+    font-weight: 400;
+    color: #7feaff;
+    font-size: 11px;
+    text-transform: none;
+    letter-spacing: 0;
+}
+.q-cert-flyout-content {
+    padding: 6px 0;
+}
+.q-cert-flyout-loading {
+    padding: 20px 14px;
+    color: #64748b;
+    text-align: center;
+    font-size: 12px;
+}
+
+/* Domain Row */
+.q-cert-domain-row {
+    display: grid;
+    grid-template-columns: 10px 1fr auto 36px 12px;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background 0.1s ease;
+}
+.q-cert-domain-row:hover {
+    background: rgba(0,158,199,0.08);
+}
+.q-cert-domain-name {
+    font-weight: 600;
+    color: #e5f6ff;
+}
+.q-cert-domain-count {
+    color: #64748b;
+    font-size: 11px;
+}
+.q-cert-domain-chevron {
+    font-size: 10px;
+    color: #64748b;
+    text-align: center;
+}
+
+/* Subdomain Cert Rows */
+.q-cert-subs {
+    border-bottom: 1px solid rgba(0,158,199,0.1);
+    margin-bottom: 2px;
+}
+.q-cert-sub-row {
+    display: grid;
+    grid-template-columns: 20px 1fr 10px 52px 150px 40px 96px;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px 5px 28px;
+    font-size: 12px;
+    color: #94a3b8;
+}
+.q-cert-sub-prefix {
+    color: #334155;
+    font-family: monospace;
+}
+.q-cert-sub-name {
+    color: #cbd5e1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.q-cert-sub-status {
+    font-size: 11px;
+}
+.q-cert-sub-expiry {
+    font-size: 11px;
+    color: #64748b;
+}
+
+/* Status Dot */
+.q-cert-status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* Days Remaining Color Classes */
+.q-cert-days {
+    font-weight: 600;
+    font-size: 12px;
+    min-width: 32px;
+    text-align: right;
+}
+.q-cert-days-good { color: #22c55e; }
+.q-cert-days-ok { color: #22c55e; }
+.q-cert-days-warn { color: #eab308; }
+.q-cert-days-critical { color: #ef4444; }
+.q-cert-days-expired { color: #ef4444; }
+
+/* Cert Sub-Row Action Buttons */
+.q-cert-sub-actions {
+    display: flex;
+    gap: 2px;
+    justify-content: flex-end;
+}
+.q-cert-sub-actions button {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    opacity: 0.5;
+    transition: opacity 0.15s, background 0.15s;
+}
+.q-cert-sub-actions button:hover {
+    opacity: 1;
+    background: rgba(0,158,199,0.15);
+}
+.q-cert-sub-actions .q-cert-btn-delete:hover {
+    background: rgba(239,68,68,0.2);
+    color: #ef4444;
+}
+
+/* Cert View Modal */
+/* ── Confirm Modal ── */
+.q-confirm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.75);
+    z-index: var(--z-confirm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.q-confirm-modal {
+    background: #0c1624;
+    border: 1px solid #009ec7;
+    border-radius: 8px;
+    max-width: 440px;
+    width: 90%;
+    padding: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    animation: q-confirm-in 0.15s ease-out;
+}
+@keyframes q-confirm-in {
+    from { opacity: 0; transform: scale(0.95) translateY(-8px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.q-confirm-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #e5f6ff;
+    margin-bottom: 12px;
+}
+.q-confirm-message {
+    font-size: 13px;
+    color: #94a3b8;
+    line-height: 1.5;
+    margin-bottom: 24px;
+}
+.q-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+.q-confirm-btn {
+    min-width: 90px;
+}
+.q-confirm-btn-cancel {
+    background: transparent;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    min-width: 90px;
+    border-radius: 4px;
+}
+.q-confirm-btn-cancel:hover {
+    background: rgba(148,163,184,0.08);
+    border-color: #475569;
+    color: #cbd5e1;
+}
+.q-warning {
+    background: #c27803;
+    color: #fff;
+}
+.q-warning:hover {
+    background: #a86802;
+}
+
+/* ── Cert View Modal ── */
+.q-cert-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.7);
+    z-index: var(--z-modal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.q-cert-modal {
+    background: #0c1624;
+    border: 1px solid #009ec7;
+    border-radius: 8px;
+    max-width: 700px;
+    width: 90%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+.q-cert-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(0,158,199,0.2);
+    font-weight: 600;
+    color: #e5f6ff;
+    font-size: 14px;
+}
+.q-cert-modal-header select {
+    background: #1a2332;
+    color: #cbd5e1;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-family: monospace;
+}
+.q-cert-modal-body {
+    flex: 1;
+    overflow: auto;
+    padding: 14px 18px;
+}
+.q-cert-modal-body pre {
+    margin: 0;
+    font-family: 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #e5f6ff;
+    white-space: pre-wrap;
+    word-break: break-all;
+    user-select: all;
+}
+.q-cert-modal-footer {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    padding: 12px 18px;
+    border-top: 1px solid rgba(0,158,199,0.2);
+}
+
+/* Checkbox Labels */
+.q-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #E1E5EA;
+    cursor: pointer;
+    margin: 12px 0;
+    user-select: none;
+}
+
+.q-checkbox-label input[type="checkbox"] {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
+
+/* === Q BRANCH ANSI COLOR SUPPORT === */
+/* Standard ANSI Colors (Terraform/Ansible compatible) */
+.ansi-black {
+    color: #6b7280;
+}
+.ansi-red {
+    color: #ff5555;
+}
+.ansi-green {
+    color: #50fa7b;
+}
+.ansi-yellow {
+    color: #f1fa8c;
+}
+.ansi-blue {
+    color: #8be9fd;
+}
+.ansi-cyan {
+    color: #8be9fd;
+}
+.ansi-white {
+    color: #f8f8f2;
+}
+.ansi-magenta {
+    color: #ff79c6;
+}
+
+/* Bright ANSI Colors (Bold/Intense) */
+.ansi-bright-black {
+    color: #9ca3af;
+}
+.ansi-bright-red {
+    color: #ff6e6e;
+}
+.ansi-bright-green {
+    color: #69ff94;
+}
+.ansi-bright-yellow {
+    color: #ffffa5;
+}
+.ansi-bright-blue {
+    color: #a4ffff;
+}
+.ansi-bright-cyan {
+    color: #a4ffff;
+}
+.ansi-bright-white {
+    color: #ffffff;
+}
+.ansi-bright-magenta {
+    color: #ff92df;
+}
+
+/* Mission Output terminal */
+#terminalLog {
+    background-color: #1e1e1e;
+    color: #f8f8f2;
+    padding: 15px;
+    border-radius: 6px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.4;         /* readable spacing without overlap */
+    font-family: "Fira Code", "JetBrains Mono", monospace;
+    font-size: 14px;
+}
+
+/* ============================================================
+   CERTIFICATE MANAGEMENT STYLES
+   ============================================================ */
+
+/* Certificate status summary panel */
+.cert-status-summary {
+    display: flex;
+    gap: 20px;
+    padding: 12px;
+    background-color: rgba(0, 160, 223, 0.08);
+    border: 1px solid rgba(0, 160, 223, 0.3);
+    border-radius: 6px;
+    margin-bottom: 15px;
+}
+
+.cert-stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cert-stat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #9ca3af;
+}
+
+.cert-stat-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: #00A0DF;
+}
+
+/* Certificate divider */
+.cert-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0, 160, 223, 0.4), transparent);
+    margin: 15px 0;
+}
+
+/* Certificate info panel */
+.cert-info-panel {
+    padding: 12px;
+    background-color: rgba(0, 160, 223, 0.05);
+    border: 1px solid rgba(0, 160, 223, 0.2);
+    border-radius: 6px;
+    margin: 12px 0;
+}
+
+.cert-info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(0, 160, 223, 0.1);
+}
+
+.cert-info-row:last-child {
+    border-bottom: none;
+}
+
+.cert-info-label {
+    font-size: 13px;
+    color: #9ca3af;
+    font-weight: 500;
+}
+
+/* Certificate status badge */
+.cert-status-badge {
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    background-color: rgba(34, 197, 94, 0.15);
+    color: #7fffd4;
+    border: 1px solid rgba(34, 197, 94, 0.5);
+}
+
+.cert-status-badge.expiring-soon {
+    background-color: rgba(234, 179, 8, 0.15);
+    color: #facc15;
+    border: 1px solid rgba(234, 179, 8, 0.7);
+}
+
+.cert-status-badge.expired {
+    background-color: rgba(239, 68, 68, 0.18);
+    color: #fecaca;
+    border: 1px solid rgba(239, 68, 68, 0.8);
+}
+
+/* Certificate ansible option */
+.cert-ansible-option {
+    margin: 15px 0;
+    padding: 10px;
+    background-color: rgba(0, 160, 223, 0.05);
+    border-left: 3px solid #00A0DF;
+    border-radius: 4px;
+}
+
+.cert-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #E1E5EA;
+}
+
+.cert-checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+/* Advanced options toggle */
+.cert-advanced-toggle {
+    padding: 10px;
+    background-color: rgba(0, 160, 223, 0.08);
+    border: 1px solid rgba(0, 160, 223, 0.2);
+    border-radius: 4px;
+    cursor: pointer;
+    margin: 15px 0;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.cert-advanced-toggle:hover {
+    background-color: rgba(0, 160, 223, 0.12);
+    border-color: rgba(0, 160, 223, 0.4);
+}
+
+#certAdvancedToggleText {
+    font-size: 13px;
+    font-weight: 600;
+    color: #00A0DF;
+}
+
+.cert-advanced-content {
+    padding: 15px;
+    background-color: rgba(0, 160, 223, 0.03);
+    border: 1px solid rgba(0, 160, 223, 0.15);
+    border-radius: 6px;
+    margin-bottom: 15px;
+}
+
+/* Certificate Preview Panel */
+.cert-preview-panel {
+    padding: 15px;
+    background-color: rgba(0, 224, 255, 0.05);
+    border: 1px solid rgba(0, 224, 255, 0.3);
+    border-radius: 6px;
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+
+.cert-preview-header {
+    font-weight: 700;
+    font-size: 13px;
+    color: #00e0ff;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.cert-preview-content {
+    font-family: 'Fira Code', 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    color: #E1E5EA;
+}
+
+.cert-preview-content .preview-cn {
+    color: #00e0ff;
+    font-weight: 700;
+}
+
+.cert-preview-content .preview-san {
+    color: #50fa7b;
+    margin-left: 20px;
+}
+
+.cert-preview-content .preview-label {
+    color: #888;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 8px;
+    margin-bottom: 4px;
+}
+
+/* ============================================================
+   IPAM DRAWER STYLES
+   ============================================================ */
+
+.q-ipam-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.q-ipam-header-row h2 {
+    margin: 0;
+}
+
+.q-ipam-loading {
+    text-align: center;
+    padding: 30px 14px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.q-ipam-error {
+    padding: 12px 14px;
+    color: #fecaca;
+    background: rgba(239,68,68,0.12);
+    border: 1px solid rgba(239,68,68,0.4);
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+/* IPAM table: compact, monospace IPs */
+.q-ipam-table {
+    font-size: 12px;
+}
+
+.q-ipam-table th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #94a3b8;
+}
+
+.q-ipam-ip {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    color: #22d3ee;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+/* Status pill badges */
+.q-ipam-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.q-ipam-status-active {
+    background: rgba(34,197,94,0.15);
+    color: #86efac;
+    border: 1px solid rgba(34,197,94,0.5);
+}
+
+.q-ipam-status-reserved {
+    background: rgba(234,179,8,0.15);
+    color: #fde047;
+    border: 1px solid rgba(234,179,8,0.5);
+}
+
+.q-ipam-status-dhcp {
+    background: rgba(59,130,246,0.15);
+    color: #93c5fd;
+    border: 1px solid rgba(59,130,246,0.5);
+}
+
+.q-ipam-status-deprecated {
+    background: rgba(239,68,68,0.15);
+    color: #fca5a5;
+    border: 1px solid rgba(239,68,68,0.5);
+}
+
+.q-ipam-status-slaac {
+    background: rgba(168,85,247,0.15);
+    color: #d8b4fe;
+    border: 1px solid rgba(168,85,247,0.5);
+}
+
+/* ============================================================
+   IP INPUT VALIDATION STYLES
+   ============================================================ */
+
+.q-ip-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.q-ip-input-wrapper .q-input {
+    padding-right: 32px;
+    margin-bottom: 0;
+}
+
+.q-ip-validation-indicator {
+    position: absolute;
+    right: 10px;
+    font-size: 16px;
+    font-weight: 700;
+    pointer-events: none;
+    line-height: 1;
+}
+
+.q-ip-available {
+    color: #22c55e;
+}
+
+.q-ip-taken {
+    color: #ef4444;
+}
+
+.q-ip-checking {
+    color: #38bdf8;
+    animation: ipPulse 0.8s ease-in-out infinite;
+}
+
+.q-ip-invalid {
+    color: #eab308;
+}
+
+@keyframes ipPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* Input border glow */
+.q-input.q-input-ip-available {
+    border-color: #22c55e;
+    box-shadow: 0 0 0 1px rgba(34,197,94,0.6);
+}
+
+.q-input.q-input-ip-taken {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 1px rgba(239,68,68,0.6);
+}
+
+.q-input.q-input-ip-invalid {
+    border-color: #eab308;
+    box-shadow: 0 0 0 1px rgba(234,179,8,0.6);
+}
+
+/* Validation message below input */
+.q-ip-validation-msg {
+    font-size: 11px;
+    min-height: 16px;
+    margin-bottom: 8px;
+    padding-left: 2px;
+}
+
+.q-ip-msg-available {
+    color: #22c55e;
+}
+
+.q-ip-msg-taken {
+    color: #ef4444;
+}
+
+.q-ip-msg-invalid {
+    color: #eab308;
+}
+
+/* ============================================================
+   VM PROTECTION TOGGLE
+   ============================================================ */
+
+.q-vm-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.q-protect-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+.q-protect-toggle input { display: none; }
+
+.q-protect-slider {
+    width: 28px;
+    height: 14px;
+    background: rgba(100,116,139,0.4);
+    border-radius: 7px;
+    position: relative;
+    transition: background 0.2s;
+}
+
+.q-protect-slider::after {
+    content: '';
+    width: 10px;
+    height: 10px;
+    background: #94a3b8;
+    border-radius: 50%;
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s, background 0.2s;
+}
+
+/* Checked = protected */
+.q-protect-toggle input:checked + .q-protect-slider {
+    background: rgba(234,179,8,0.5);
+}
+
+.q-protect-toggle input:checked + .q-protect-slider::after {
+    transform: translateX(14px);
+    background: #eab308;
+}
+
+.q-protect-label {
+    font-size: 14px;
+    line-height: 1;
+}
+
+/* Disabled destroy button */
+.q-button.q-danger:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+    background: #6b2121;
+}

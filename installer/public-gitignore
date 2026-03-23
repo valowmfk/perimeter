@@ -1,0 +1,48 @@
+# ── Python ──────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+*.egg
+venv/
+.venv/
+
+# ── Secrets (NEVER commit) ─────────────────
+secrets/
+.sops.yaml
+*.enc.env
+credentials.auto.tfvars
+
+# ── Terraform state (per-installation) ─────
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+*.auto.tfvars.json
+
+# ── Runtime data ────────────────────────────
+logs/
+data/
+vm_track.json
+template_refresh.json
+
+# ── SSH keys ────────────────────────────────
+*.pem
+id_rsa
+id_ed25519
+
+# ── OS / Editor ────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# ── Project-specific exclusions ────────────
+CLAUDE.md
+tasks/
+certificates/
+inventories/inventory.yml

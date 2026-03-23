@@ -1,0 +1,260 @@
+# ==========================================
+# ANSIBLE INVENTORY - PERIMETER AUTOMATION
+# ==========================================
+#
+# Organized by:
+#   1. Environment (production, staging, demo)
+#   2. Function (linux, vthunder, docker)
+#   3. Package manager (dnf, apt)
+#
+# This allows flexible targeting:
+#   - By environment:  -l production, -l staging, -l demo
+#   - By function:     -l all_linux, -l all_vthunder
+#   - By OS type:      -l all_dnf, -l all_apt
+#   - Specific tier:   -l prod_linux, -l staging_vthunder
+# ==========================================
+
+
+# ==========================================
+# PRODUCTION ENVIRONMENT
+# ==========================================
+production:
+  children:
+    prod_linux_dnf:
+    prod_linux_apt:
+    prod_docker:
+    k8s_linux:
+    prod_vthunder:
+    prod_vyos:
+
+prod_linux_dnf:
+  hosts:
+    kasm.home.klouda.co:
+      ansible_host: 10.1.55.8
+      os_type: rocky9
+    pihole09.home.klouda.co:
+    pihole10.home.klouda.co:
+    pihole11.home.klouda.co:
+    felix.home.klouda.co:
+    perimeter.home.klouda.co:
+      ansible_host: 10.1.55.13
+      os_type: rocky9
+    a10bot.home.klouda.co:
+      ansible_host: 10.1.55.16
+      os_type: rocky9
+  vars:
+    environment: production
+    package_manager: dnf
+
+prod_linux_apt:
+  hosts:
+    valheim-valow.home.klouda.co:
+  vars:
+    environment: production
+    package_manager: apt
+
+prod_docker:
+  hosts:
+    a10-web-dmz.home.klouda.co:
+    docker-prod.home.klouda.co:
+  vars:
+    environment: production
+    ansible_user: mklouda
+    ansible_ssh_private_key_file: ~/.ssh/ansible_qbranch
+
+k8s_linux:
+  hosts:
+    k8s01.home.klouda.co:
+    k8s02.home.klouda.co:
+    k8s03.home.klouda.co:
+  vars:
+    environment: production
+    package_manager: dnf
+    ansible_user: mklouda
+    ansible_ssh_private_key_file: ~/.ssh/ansible_qbranch
+
+prod_vthunder:
+  hosts:
+    vth-ssli.home.klouda.co:
+    vth-waf-dmz.home.klouda.co:
+    vth-socal1.home.klouda.co:
+    vth-socal2.home.klouda.co:
+    vth-den.home.klouda.co:
+    vth-cgn.home.klouda.co:
+    vth-ssli2.home.klouda.co:
+    vth-gslb-a.home.klouda.co:
+      ansible_host: 10.1.55.77
+      os_type: acos6
+    # Placeholder for staging vThunder instances
+    vth-gslb-b.home.klouda.co:
+      ansible_host: 10.1.55.78
+      os_type: acos6
+  vars:
+    environment: production
+    ansible_user: admin
+    ansible_password: "{{ lookup('pipe', '/home/mklouda/automation-demo/scripts/get-secret.sh
+      VTH_ADMIN_PASS') }}"
+    ansible_ssh_private_key_file: ~/.ssh/ansible_vthunder
+    ansible_port: 443
+    ansible_become: false
+
+# ==========================================
+# PROXMOX ENVIRONMENT
+# ==========================================
+
+proxmox:
+  children:
+    proxmox_pve:
+    proxmox_backup_server:
+
+proxmox_pve:
+  hosts:
+    goldfinger.home.klouda.co:
+  vars:
+    environment: proxmox
+    package_manager: apt
+
+proxmox_backup_server:
+  hosts:
+    pbs.home.klouda.co:
+  vars:
+    environment: proxmox
+    package_manager: apt
+
+# ==========================================
+# DEMO ENVIRONMENT
+# ==========================================
+
+demo:
+  children:
+    demo_vthunder:
+    demo_docker:
+
+demo_vthunder:
+  hosts:
+    vth-auto.home.klouda.co:
+  vars:
+    environment: demo
+    ansible_user: admin
+    ansible_password: "{{ lookup('pipe', '/home/mklouda/automation-demo/scripts/get-secret.sh
+      VTH_ADMIN_PASS') }}"
+    ansible_ssh_private_key_file: ~/.ssh/ansible_vthunder
+    ansible_port: 443
+    ansible_become: false
+
+demo_docker:
+  hosts:
+    a10-web.home.klouda.co:
+  vars:
+    environment: demo
+    ansible_user: mklouda
+    ansible_ssh_private_key_file: ~/.ssh/ansible_qbranch
+
+# ==========================================
+# STAGING ENVIRONMENT
+# ==========================================
+staging:
+  children:
+    staging_linux:
+    staging_vthunder:
+    staging_vyos:
+
+staging_linux:
+  hosts: {}
+  vars:
+    environment: staging
+    ansible_user: mklouda
+    ansible_ssh_private_key_file: ~/.ssh/ansible_qbranch
+
+staging_vthunder:
+  hosts: {}
+  vars:
+    environment: staging
+    ansible_become: false  # vThunder uses API calls, not sudo
+
+staging_vyos:
+  hosts:
+    vyos-test2.home.klouda.co:
+      ansible_host: 10.1.55.104
+      os_type: vyos-rolling
+  vars:
+    environment: staging
+    ansible_user: mklouda
+    ansible_ssh_private_key_file: ~/.ssh/ansible_qbranch
+
+prod_vyos:
+  hosts: {}
+  vars:
+    environment: production
+    ansible_user: mklouda
+    ansible_ssh_private_key_file: ~/.ssh/ansible_qbranch
+
+# ==========================================
+# FUNCTIONAL GROUPS (Cross-Environment)
+# ==========================================
+
+# All Linux hosts (regardless of environment)
+all_linux:
+  children:
+    prod_linux_dnf:
+    prod_linux_apt:
+    staging_linux:
+    k8s_linux:
+    demo_docker:
+    prod_docker:
+
+# All vThunder hosts (regardless of environment)
+all_vthunder:
+  children:
+    staging_vthunder:
+    demo_vthunder:
+    prod_vthunder:
+
+# All VyOS hosts (regardless of environment)
+all_vyos:
+  children:
+    staging_vyos:
+    prod_vyos:
+
+# All Docker hosts (regardless of environment)
+all_docker:
+  children:
+    prod_docker:
+    demo_docker:
+
+# All DNF-based systems
+all_dnf:
+  children:
+    prod_linux_dnf:
+
+# All APT-based systems
+all_apt:
+  children:
+    prod_linux_apt:
+
+
+# ==========================================
+# SPECIAL PURPOSE HOSTS
+# ==========================================
+game_servers:
+  hosts:
+    valheim-valow.home.klouda.co:
+  vars:
+    environment: production
+    purpose: gaming
+
+# ==========================================
+# GLOBAL VARIABLES (Applied to ALL hosts)
+# ==========================================
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
+      ansible_become: false
+      ansible_python_interpreter: "{{ ansible_playbook_python }}"
+  vars:
+    ansible_become: true
+    ansible_become_method: sudo
+    ansible_become_password: "{{ lookup('env', 'ANSIBLE_BECOME_PASS') }}"
+    ansible_user: mklouda
+    ansible_ssh_private_key_file: ~/.ssh/ansible_qbranch

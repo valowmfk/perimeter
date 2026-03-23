@@ -1,0 +1,73 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="256" height="256" fill="#0f172a" rx="40" />
+  <path d="M128 30L198 71.5V154.5L128 196L58 154.5V71.5L128 30Z" stroke="url(#perimeterGradient1)" stroke-width="3" fill="none" />
+  <path d="M128 55L180 85V145L128 175L76 145V85L128 55Z" stroke="url(#perimeterGradient2)" stroke-width="2" fill="none" opacity="0.6" />
+  <circle cx="128" cy="30" r="5" fill="#06b6d4" />
+  <circle cx="198" cy="71.5" r="5" fill="#06b6d4" />
+  <circle cx="198" cy="154.5" r="5" fill="#06b6d4" />
+  <circle cx="128" cy="196" r="5" fill="#06b6d4" />
+  <circle cx="58" cy="154.5" r="5" fill="#06b6d4" />
+  <circle cx="58" cy="71.5" r="5" fill="#06b6d4" />
+  <circle cx="128" cy="113" r="28" fill="url(#centerGradient)" />
+  <circle cx="128" cy="113" r="28" stroke="#06b6d4" stroke-width="2" opacity="0.5" />
+  <line x1="128" y1="113" x2="128" y2="55" stroke="url(#lineGradient1)" stroke-width="1.5" opacity="0.4" />
+  <line x1="128" y1="113" x2="180" y2="85" stroke="url(#lineGradient2)" stroke-width="1.5" opacity="0.4" />
+  <line x1="128" y1="113" x2="180" y2="145" stroke="url(#lineGradient3)" stroke-width="1.5" opacity="0.4" />
+  <line x1="128" y1="113" x2="76" y2="145" stroke="url(#lineGradient4)" stroke-width="1.5" opacity="0.4" />
+  <line x1="128" y1="113" x2="76" y2="85" stroke="url(#lineGradient5)" stroke-width="1.5" opacity="0.4" />
+  <circle cx="128" cy="55" r="3" fill="#10b981" />
+  <circle cx="180" cy="85" r="3" fill="#8b5cf6" />
+  <circle cx="180" cy="145" r="3" fill="#f59e0b" />
+  <circle cx="76" cy="145" r="3" fill="#ef4444" />
+  <circle cx="76" cy="85" r="3" fill="#06b6d4" />
+  <path d="M128 100V126M115 113H141M120 105L136 121M136 105L120 121" stroke="white" stroke-width="2.5" stroke-linecap="round" />
+  <g opacity="0.08">
+    <path d="M40 40L80 40" stroke="#06b6d4" stroke-width="1" />
+    <path d="M176 40L216 40" stroke="#06b6d4" stroke-width="1" />
+    <path d="M40 216L80 216" stroke="#06b6d4" stroke-width="1" />
+    <path d="M176 216L216 216" stroke="#06b6d4" stroke-width="1" />
+    <circle cx="60" cy="60" r="2" fill="#06b6d4" />
+    <circle cx="196" cy="60" r="2" fill="#06b6d4" />
+    <circle cx="60" cy="196" r="2" fill="#06b6d4" />
+    <circle cx="196" cy="196" r="2" fill="#06b6d4" />
+  </g>
+  <path d="M128 30L198 71.5V154.5L128 196L58 154.5V71.5L128 30Z" stroke="#06b6d4" stroke-width="1" fill="none" opacity="0.2" filter="url(#glow)" />
+  <defs>
+    <linearGradient id="perimeterGradient1" x1="58" y1="30" x2="198" y2="196" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="50%" stop-color="#8b5cf6" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <linearGradient id="perimeterGradient2" x1="76" y1="55" x2="180" y2="175" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+    <radialGradient id="centerGradient" cx="128" cy="113" r="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1e3a8a" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </radialGradient>
+    <linearGradient id="lineGradient1" x1="128" y1="113" x2="128" y2="55">
+      <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0.2" />
+    </linearGradient>
+    <linearGradient id="lineGradient2" x1="128" y1="113" x2="180" y2="85">
+      <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.2" />
+    </linearGradient>
+    <linearGradient id="lineGradient3" x1="128" y1="113" x2="180" y2="145">
+      <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.2" />
+    </linearGradient>
+    <linearGradient id="lineGradient4" x1="128" y1="113" x2="76" y2="145">
+      <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#ef4444" stop-opacity="0.2" />
+    </linearGradient>
+    <linearGradient id="lineGradient5" x1="128" y1="113" x2="76" y2="85">
+      <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.2" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" />
+    </filter>
+  </defs>
+</svg>

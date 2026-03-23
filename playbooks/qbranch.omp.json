@@ -1,0 +1,59 @@
+{
+  "blocks": [
+    {
+      "type": "prompt",
+      "alignment": "left",
+      "segments": [
+        {
+          "type": "text",
+          "style": "powerline",
+          "foreground": "#FFFFFF",
+          "background": "#00315C",
+          "properties": {
+            "text": " Q "
+          }
+        },
+        {
+          "type": "session",
+          "style": "powerline",
+          "foreground": "#E1E5EA",
+          "background": "#005CAB",
+          "powerline_symbol": "\uE0B0"
+        },
+        {
+          "type": "path",
+          "style": "powerline",
+          "foreground": "#FFFFFF",
+          "background": "#0077E6",
+          "powerline_symbol": "\uE0B0",
+          "properties": {
+            "style": "folder"
+          }
+        },
+        {
+          "type": "git",
+          "style": "powerline",
+          "foreground": "#FFFFFF",
+          "background": "#00A0DF",
+          "powerline_symbol":
+            "\uE0B0"
+        }
+      ]
+    },
+    {
+      "type": "prompt",
+      "alignment": "right",
+      "segments": [
+        {
+          "type": "executiontime",
+          "style": "plain",
+          "foreground": "#FFD700",
+          "properties": {
+            "threshold": 200
+          }
+        }
+      ]
+    }
+  ],
+  "version": 2
+}

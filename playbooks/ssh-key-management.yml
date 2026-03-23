@@ -1,0 +1,78 @@
+---
+# ==========================================
+# SSH Key Management and Hardening
+# ==========================================
+# Deploys authorized SSH keys and hardens sshd config.
+#
+# Usage:
+#   # Dry run on single host:
+#   ansible-playbook -i inventories/inventory.yml playbooks/ssh-key-management.yml -l k8s01.home.klouda.co --check
+#
+#   # Apply to single host:
+#   ansible-playbook -i inventories/inventory.yml playbooks/ssh-key-management.yml -l k8s01.home.klouda.co
+#
+#   # Roll out to all Linux hosts:
+#   ansible-playbook -i inventories/inventory.yml playbooks/ssh-key-management.yml -l all_linux
+#
+#   # Legacy sunset (purge unlisted keys):
+#   ansible-playbook -i inventories/inventory.yml playbooks/ssh-key-management.yml -l all_linux -e exclusive_keys=true
+
+- name: SSH Key Management and Hardening
+  hosts: all
+  become: yes
+  vars:
+    ssh_user: mklouda
+    exclusive_keys: false
+    get_secret: /home/mklouda/automation-demo/scripts/get-secret.sh
+    ssh_authorized_keys:
+      - "{{ lookup('pipe', get_secret ~ ' LINUX_SSH_KEY_1') }}"
+      - "{{ lookup('pipe', get_secret ~ ' LINUX_SSH_KEY_2') }}"
+      - "{{ lookup('pipe', get_secret ~ ' LINUX_SSH_KEY_3') }}"
+
+  tasks:
+    - name: Ensure .ssh directory exists
+      file:
+        path: "/home/{{ ssh_user }}/.ssh"
+        state: directory
+        owner: "{{ ssh_user }}"
+        group: "{{ ssh_user }}"
+        mode: '0700'
+
+    - name: Deploy authorized_keys
+      authorized_key:
+        user: "{{ ssh_user }}"
+        key: "{{ item }}"
+        state: present
+        exclusive: "{{ exclusive_keys | bool }}"
+      loop: "{{ ssh_authorized_keys }}"
+      when: item | length > 0
+
+    - name: Disable password authentication
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+        state: present
+      notify: Restart sshd
+
+    - name: Disable challenge-response authentication
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?ChallengeResponseAuthentication'
+        line: 'ChallengeResponseAuthentication no'
+        state: present
+      notify: Restart sshd
+
+    - name: Ensure PubkeyAuthentication is enabled
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PubkeyAuthentication'
+        line: 'PubkeyAuthentication yes'
+        state: present
+      notify: Restart sshd
+
+  handlers:
+    - name: Restart sshd
+      service:
+        name: sshd
+        state: restarted

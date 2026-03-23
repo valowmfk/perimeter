@@ -1,0 +1,172 @@
+---
+- name: Universal Linux Update (Enhanced)
+  hosts: all
+  gather_facts: true
+  become: yes
+
+  vars:
+    allow_reboot: true          # toggle reboot behavior
+    min_uptime_minutes: 5       # don't reboot if system uptime < X mins
+
+  tasks:
+
+    ##########################################################################
+    # Proper APT lock detection (Ubuntu/Debian)
+    ##########################################################################
+
+    - name: APT | Check if dpkg/apt is actively locking the backend
+      shell: |
+        fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock 2>/dev/null | wc -l
+      register: apt_lock_count
+      changed_when: false
+      when: ansible_facts.os_family == "Debian"
+
+    - name: APT | Fail if active lock is detected
+      fail:
+        msg: "APT lock is currently held by another process. Try again later."
+      when:
+        - ansible_facts.os_family == "Debian"
+        - apt_lock_count.stdout | int > 0
+
+    - name: Check for package manager locks (DNF)
+      stat:
+        path: "/var/run/dnf.pid"
+      register: dnf_lock
+      when: ansible_facts.os_family == "RedHat"
+
+    - name: Fail if DNF lock is active
+      fail:
+        msg: "DNF lock detected — aborting update."
+      when:
+        - ansible_facts.os_family == "RedHat"
+        - dnf_lock.stat.exists
+
+
+    ##########################################################################
+    # Capture the current kernel version before upgrades
+    ##########################################################################
+
+    - name: Capture current kernel version before updates
+      command: uname -r
+      register: before_kernel
+      changed_when: false
+
+
+    ##########################################################################
+    # APT-based systems (Ubuntu / Debian)
+    ##########################################################################
+
+    - name: APT | Update package index
+      apt:
+        update_cache: yes
+      when: ansible_facts.os_family == "Debian"
+
+    - name: APT | Upgrade all packages
+      apt:
+        upgrade: dist
+      register: apt_upgrade
+      when: ansible_facts.os_family == "Debian"
+
+    - name: APT | Autoremove
+      apt:
+        autoremove: yes
+      when: ansible_facts.os_family == "Debian"
+
+    - name: APT | Get upgrade summary
+      command: apt list --upgradable
+      register: apt_summary
+      changed_when: false
+      when: ansible_facts.os_family == "Debian"
+
+
+    ##########################################################################
+    # DNF-based systems (RHEL / Rocky / AlmaLinux)
+    ##########################################################################
+
+    - name: DNF | Upgrade all packages
+      dnf:
+        name: "*"
+        state: latest
+      register: dnf_upgrade
+      when: ansible_facts.os_family == "RedHat"
+
+    - name: DNF | Autoremove unused packages
+      dnf:
+        autoremove: yes
+      when: ansible_facts.os_family == "RedHat"
+
+    - name: DNF | Get update summary
+      command: dnf updateinfo summary
+      register: dnf_summary
+      changed_when: false
+      when: ansible_facts.os_family == "RedHat"
+
+
+    ##########################################################################
+    # Capture kernel after updates
+    ##########################################################################
+
+    - name: Capture new kernel version after updates
+      command: uname -r
+      register: after_kernel
+      changed_when: false
+
+
+    ##########################################################################
+    # Determine if reboot is required
+    ##########################################################################
+
+    - name: Determine if kernel changed
+      set_fact:
+        kernel_changed: "{{ before_kernel.stdout != after_kernel.stdout }}"
+
+    - name: Check system uptime in minutes
+      command: awk '{print int($1/60)}' /proc/uptime
+      register: uptime_minutes
+      changed_when: false
+
+    - name: Decide if reboot is allowed
+      set_fact:
+        should_reboot: >-
+          {{ allow_reboot
+             and (kernel_changed
+                  or (apt_upgrade.changed | default(false))
+                  or (dnf_upgrade.changed | default(false)))
+             and (uptime_minutes.stdout | int) >= min_uptime_minutes
+          }}
+
+    ##########################################################################
+    # Reboot
+    ##########################################################################
+
+    - name: Reboot if required
+      reboot:
+        msg: "Rebooting after system updates"
+        connect_timeout: 5
+        reboot_timeout: 600
+      when: should_reboot
+
+
+    ##########################################################################
+    # Output Summary (A10/QBranch dashboard friendly)
+    ##########################################################################
+
+    - name: Display update summary
+      debug:
+        msg: |
+          🚀 UPDATE SUMMARY ({{ inventory_hostname }})
+          ------------------------------------------
+          Kernel changed: {{ kernel_changed }}
+          Reboot allowed: {{ allow_reboot }}
+          Reboot triggered: {{ should_reboot }}
+          Uptime before reboot: {{ uptime_minutes.stdout }} minutes
+
+          {% if ansible_facts.os_family == "Debian" %}
+          APT upgrade summary:
+          {{ apt_summary.stdout }}
+          {% endif %}
+
+          {% if ansible_facts.os_family == "RedHat" %}
+          DNF update summary:
+          {{ dnf_summary.stdout }}
+          {% endif %}
