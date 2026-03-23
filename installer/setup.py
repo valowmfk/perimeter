@@ -350,10 +350,17 @@ def screen_proxmox() -> Dict[str, str]:
 
     pm_url = prompt("Proxmox API URL", "https://proxmox.local:8006/api2/json")
 
-    # Verify connectivity
+    # Validate URL format
+    if "/api2/json" not in pm_url:
+        warn("URL should contain '/api2/json' — e.g., https://proxmox:8006/api2/json")
+        pm_url = prompt("Proxmox API URL (corrected)", pm_url)
+
+    # Verify connectivity (non-blocking — self-signed certs may cause false negatives)
     base_url = pm_url.rstrip("/")
-    if not verify_url(f"{base_url}/version"):
-        warn("Cannot reach Proxmox API — check the URL")
+    if verify_url(f"{base_url}/version"):
+        ok("Proxmox API reachable")
+    else:
+        warn("Cannot verify Proxmox API (self-signed cert?) — continuing anyway")
 
     print()
     info("Perimeter needs an API token for Proxmox. We can create one automatically.")
