@@ -660,8 +660,7 @@ def screen_write_config(
         ok(f"Age key already exists: {age_key_path}")
     else:
         age_dir.mkdir(parents=True, exist_ok=True)
-        result = run_cmd(["age-keygen"], check=True)
-        age_key_path.write_text(result.stdout)
+        run_cmd(["age-keygen", "-o", str(age_key_path)], check=True)
         age_key_path.chmod(0o600)
         os.chown(str(age_key_path), uid, gid)
         for p in [age_dir, age_dir.parent, age_dir.parent.parent]:
@@ -673,8 +672,11 @@ def screen_write_config(
     for line in age_key_path.read_text().splitlines():
         if line.startswith("# public key:"):
             age_public_key = line.split(":", 1)[1].strip()
-        elif line.startswith("age1"):
-            age_public_key = line.strip()
+            break
+    if not age_public_key:
+        fail("Could not extract Age public key from key file")
+        sys.exit(1)
+    info(f"Age public key: {age_public_key}")
 
     # ── .sops.yaml ─────────────────────────────────
     sops_content = f"""creation_rules:
@@ -734,7 +736,9 @@ def screen_write_config(
         os.chown(str(enc_env_path), uid, gid)
         ok("Secrets encrypted: secrets/automation-demo.enc.env")
     except subprocess.CalledProcessError as e:
-        fail(f"SOPS encryption failed: {e}")
+        stderr_msg = e.stderr.strip() if e.stderr else "no stderr"
+        stdout_msg = e.stdout.strip() if e.stdout else "no stdout"
+        fail(f"SOPS encryption failed: {stderr_msg or stdout_msg}")
         # Keep plaintext as fallback
         shutil.move(tmp_path, str(enc_env_path))
         warn("Secrets saved as plaintext — encrypt manually with SOPS later")
@@ -883,6 +887,7 @@ def screen_write_config(
         WorkingDirectory={install_dir}
 
         Environment=SOPS_AGE_KEY_FILE={age_key_path}
+        Environment=QBRANCH_ROOT={install_dir}
         Environment=FLASK_PORT=8080
         Environment=PERIMETER_DNS_DOMAIN={network['dns_domain']}
         Environment=PERIMETER_FEATURE_ANSIBLE={'1' if features.get('ansible') else '0'}
