@@ -112,6 +112,19 @@ def run_cmd(cmd: List[str], check: bool = True, capture: bool = True, **kwargs) 
     )
 
 
+def prompt_with_verify(label: str, default: str, verify_fn, fail_msg: str = "Unreachable") -> str:
+    """Prompt for a value and verify it, retrying on failure."""
+    while True:
+        value = prompt(label, default)
+        if verify_fn(value):
+            ok(f"Verified: {value}")
+            return value
+        warn(f"{fail_msg}: {value}")
+        if not prompt_yes_no("Try again?"):
+            warn("Continuing with unverified value")
+            return value
+
+
 def verify_url(url: str, headers: Optional[Dict] = None, verify_ssl: bool = False) -> bool:
     """Test if a URL is reachable."""
     try:
@@ -467,14 +480,34 @@ def screen_network() -> Dict[str, Any]:
     subnets = []
     dns_domain = prompt("DNS Domain", "home.local")
 
+    def verify_ip_reachable(ip: str) -> bool:
+        """Quick ping check for an IP."""
+        try:
+            result = run_cmd(["ping", "-c", "1", "-W", "2", ip], check=False)
+            return result.returncode == 0
+        except Exception:
+            return False
+
     while True:
         print()
         subnet = prompt("Subnet (CIDR)", "10.0.0.0/24" if not subnets else "")
         if not subnet:
             break
-        gateway = prompt("  Gateway")
-        dns1 = prompt("  DNS Server 1")
+        gateway = prompt_with_verify(
+            "  Gateway", "",
+            verify_ip_reachable,
+            fail_msg="Gateway unreachable",
+        )
+        dns1 = prompt_with_verify(
+            "  DNS Server 1", "",
+            verify_ip_reachable,
+            fail_msg="DNS server unreachable",
+        )
         dns2 = prompt("  DNS Server 2 (optional)")
+        if dns2 and not verify_ip_reachable(dns2):
+            warn(f"DNS server 2 unreachable: {dns2}")
+            if prompt_yes_no("Re-enter?"):
+                dns2 = prompt("  DNS Server 2")
         dns_servers = [dns1]
         if dns2:
             dns_servers.append(dns2)
@@ -592,21 +625,26 @@ def screen_feature_creds(features: Dict[str, bool]) -> Dict[str, str]:
 
     if features.get("dns"):
         header("Pi-hole DNS Configuration")
-        creds["pihole_api_url"] = prompt("Pi-hole API URL", "http://pihole.local")
+        creds["pihole_api_url"] = prompt_with_verify(
+            "Pi-hole API URL", "http://pihole.local",
+            lambda url: verify_url(f"{url}/api"),
+            fail_msg="Pi-hole unreachable",
+        )
         creds["pihole_api_password"] = prompt_password("Pi-hole API Password")
-        if verify_url(f"{creds['pihole_api_url']}/api"):
-            ok("Pi-hole reachable")
-        else:
-            warn("Cannot verify Pi-hole connection — check after install")
 
     if features.get("ipam"):
         header("Netbox IPAM Configuration")
-        creds["netbox_url"] = prompt("Netbox URL", "https://netbox.local")
+        creds["netbox_url"] = prompt_with_verify(
+            "Netbox URL", "https://netbox.local",
+            lambda url: verify_url(f"{url}/api/"),
+            fail_msg="Netbox unreachable",
+        )
         creds["netbox_api_token"] = prompt_password("Netbox API Token")
+        # Verify token works
         if verify_url(f"{creds['netbox_url']}/api/", headers={"Authorization": f"Token {creds['netbox_api_token']}"}):
-            ok("Netbox connection verified")
+            ok("Netbox API token verified")
         else:
-            warn("Cannot verify Netbox connection — check after install")
+            warn("Token verification failed — check credentials after install")
 
     if features.get("vthunder"):
         header("A10 vThunder Configuration")
@@ -614,11 +652,11 @@ def screen_feature_creds(features: Dict[str, bool]) -> Dict[str, str]:
 
     if features.get("audit"):
         header("Loki Audit Configuration")
-        creds["loki_url"] = prompt("Loki URL", "https://loki.local")
-        if verify_url(f"{creds['loki_url']}/ready"):
-            ok("Loki reachable")
-        else:
-            warn("Cannot verify Loki connection — check after install")
+        creds["loki_url"] = prompt_with_verify(
+            "Loki URL", "https://loki.local",
+            lambda url: verify_url(f"{url}/ready"),
+            fail_msg="Loki unreachable",
+        )
 
     if features.get("certificates"):
         header("Certificate Management Configuration")
