@@ -37,10 +37,10 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 echo ""
-echo -e "${BOLD}${CYAN}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}${CYAN}║      PERIMETER v${PERIMETER_VERSION} — BOOTSTRAP INSTALLER     ║${NC}"
-echo -e "${BOLD}${CYAN}║        Automation Platform for Labs          ║${NC}"
-echo -e "${BOLD}${CYAN}╚══════════════════════════════════════════════╝${NC}"
+echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}${CYAN}║    PERIMETER v${PERIMETER_VERSION} — BOOTSTRAP INSTALLER       ║${NC}"
+echo -e "${BOLD}${CYAN}║      Automation Platform for Labs             ║${NC}"
+echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════╝${NC}"
 echo ""
 
 # ── Detect OS ─────────────────────────────────
@@ -157,8 +157,13 @@ if command -v ansible-playbook &> /dev/null; then
 else
     info "Installing Ansible via pip..."
     pip3 install ansible > /dev/null 2>&1
-    ok "Ansible installed: $(ansible --version | head -1)"
+    # Ensure pip-installed binaries are in PATH
+    export PATH="/usr/local/bin:$HOME/.local/bin:$PATH"
+    ok "Ansible installed: $(ansible --version 2>/dev/null | head -1 || echo 'installed')"
 fi
+
+# Ensure all installed binaries are findable for the Python setup
+export PATH="/usr/local/bin:$HOME/.local/bin:$PATH"
 
 # ── Docker (optional — checked during Python setup) ──
 header "Checking Docker"

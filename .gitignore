@@ -21,6 +21,9 @@ credentials.auto.tfvars
 .terraform.lock.hcl
 *.auto.tfvars.json
 
+# ── Lock files (runtime) ──────────────────
+*.lock
+
 # ── Runtime data ────────────────────────────
 logs/
 data/
