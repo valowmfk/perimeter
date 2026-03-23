@@ -1,0 +1,46 @@
+---
+# Deploy SSL certificate to Linux hosts
+# Usage: ansible-playbook -i inventories/inventory.yml playbooks/deploy-cert-linux.yml -l <host_or_group>
+# IMPORTANT: Always use -l to limit scope — do not run against all hosts
+
+- name: Deploy SSL Certificate - klouda.work
+  hosts: all  # Use -l flag to limit to specific hosts or groups
+  become: yes
+  vars:
+    cert_source_path: "/home/mklouda/automation-demo/certificates/klouda.work"
+    cert_dest_path: "/etc/ssl/certs"
+    key_dest_path: "/etc/ssl/private"
+
+  tasks:
+    - name: Ensure SSL directories exist
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ cert_dest_path }}"
+        - "{{ key_dest_path }}"
+
+    - name: Copy fullchain certificate
+      copy:
+        src: "{{ cert_source_path }}/fullchain.pem"
+        dest: "{{ cert_dest_path }}/klouda.work-fullchain.pem"
+        mode: '0644'
+        owner: root
+        group: root
+      notify: Reload web service
+
+    - name: Copy private key
+      copy:
+        src: "{{ cert_source_path }}/privkey.pem"
+        dest: "{{ key_dest_path }}/klouda.work-privkey.pem"
+        mode: '0600'
+        owner: root
+        group: root
+      notify: Reload web service
+
+  handlers:
+    - name: Reload web service
+      service:
+        name: nginx  # Change to your web server (apache2, httpd, etc.)
+        state: reloaded

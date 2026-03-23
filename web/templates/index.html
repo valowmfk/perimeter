@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perimeter · Automation Platform</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260323b">
+    <link rel="icon" type="image/svg+xml" href="/static/assets/perimeter/perimeter-logo.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/assets/perimeter/perimeter-favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/assets/perimeter/perimeter-favicon-16x16.png">
+
+    {% if features.ansible %}
+    <!-- Highlight.js for YAML syntax (Ansible drawer) -->
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+    {% endif %}
+</head>
+
+<body class="dark theme-perimeter">
+
+<a href="#mainContent" class="q-skip-link">Skip to main content</a>
+
+{% include 'partials/_header.html' %}
+
+{% include 'partials/_modals.html' %}
+
+<!-- MAIN CONTENT WRAPPER -->
+<main id="mainContent" class="unified-content" role="main">
+
+    <!-- Q BRANCH VM PROVISIONING SECTION -->
+    <div id="perimeterSection" class="section-perimeter">
+
+        <!-- MAIN TOP ROW -->
+        <div class="q-container">
+            <!-- LEFT: VM PROVISIONING DRAWER -->
+            <div class="q-panel q-panel-drawer-left">
+                <div class="q-panel-controls">
+                    {% include 'drawers/_vm_provision.html' %}
+
+                    {% if features.ansible %}
+                    {% include 'drawers/_ansible.html' %}
+                    {% endif %}
+
+                    {% if features.certificates %}
+                    {% include 'drawers/_certificates.html' %}
+                    {% endif %}
+
+                    {% if features.dns %}
+                    {% include 'drawers/_dns.html' %}
+                    {% endif %}
+
+                    {% if features.ipam %}
+                    {% include 'drawers/_ipam.html' %}
+                    {% endif %}
+
+                    {% if features.vthunder %}
+                    {% include 'drawers/_vthunder.html' %}
+                    {% endif %}
+                </div>
+            </div>
+
+            {% include 'partials/_terminal.html' %}
+        </div>
+
+        {% include 'partials/_assets.html' %}
+
+    </div>
+
+</main>
+
+<!-- JavaScript -->
+<script type="module" src="/static/js/app.js?v=20260323b"></script>
+
+
+</body>
+</html>

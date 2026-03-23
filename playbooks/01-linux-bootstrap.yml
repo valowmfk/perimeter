@@ -1,0 +1,474 @@
+---
+# =====================================================================
+# Q BRANCH LINUX BOOTSTRAP — Ubuntu 22 / Rocky 9 / RHEL 9 Hardened
+# =====================================================================
+
+# =====================================================================
+# 1. Ensure Ubuntu/Debian cloud-init + apt are finished
+# =====================================================================
+- name: Ensure apt and cloud-init are finished (Ubuntu/Debian)
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  tasks:
+
+    # ------------------------------
+    # Wait for cloud-init to finish
+    # ------------------------------
+    - name: Wait for cloud-init to complete boot
+      when: ansible_pkg_mgr == "apt"
+      shell: |
+        while [ ! -f /var/lib/cloud/instance/boot-finished ]; do
+          echo "Waiting for cloud-init…"
+          sleep 2
+        done
+      changed_when: false
+      retries: 30
+      delay: 2
+      register: cloud_init_wait
+
+    # ---------------------------------------
+    # Wait for apt/dpkg internal lock release
+    # ---------------------------------------
+    - name: Wait for apt/dpkg locks to be free
+      when: ansible_pkg_mgr == "apt"
+      shell: |
+        while fuser /var/lib/dpkg/lock-frontend  >/dev/null 2>&1 \
+           || fuser /var/lib/apt/lists/lock      >/dev/null 2>&1 \
+           || fuser /var/lib/dpkg/lock           >/dev/null 2>&1; do
+          echo "Waiting for apt…"
+          sleep 3
+        done
+      changed_when: false
+      retries: 20
+      delay: 3
+      register: apt_lock_wait
+
+# =====================================================================
+# 2. Detect Virtualization + Install QEMU Guest Agent
+# =====================================================================
+- name: Install QEMU guest agent (Proxmox/KVM detection)
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  tasks:
+
+    - name: Debug detected OS
+      debug:
+        msg: "OS: {{ ansible_facts['os_family'] }} | Distro: {{ ansible_distribution }} | PkgMgr: {{ ansible_pkg_mgr }}"
+
+    - name: Debug virtualization type
+      debug:
+        msg: "Virtualization: {{ ansible_virtualization_type }} (role: {{ ansible_virtualization_role }})"
+
+    - name: Install QEMU guest agent on Debian/Ubuntu
+      apt:
+        name: qemu-guest-agent
+        state: present
+        update_cache: true
+      when:
+        - ansible_pkg_mgr == "apt"
+        - ansible_virtualization_type in ["kvm", "qemu"]
+
+    - name: Enable QEMU guest agent on Debian/Ubuntu
+      service:
+        name: qemu-guest-agent
+        enabled: yes
+        state: started
+      when: ansible_pkg_mgr == "apt"
+
+    - name: Install QEMU guest agent on RHEL/Rocky
+      dnf:
+        name: qemu-guest-agent
+        state: present
+      when:
+        - ansible_pkg_mgr == "dnf"
+        - ansible_virtualization_type in ["kvm", "qemu"]
+
+    - name: Enable QEMU guest agent on RHEL/Rocky
+      service:
+        name: qemu-guest-agent
+        enabled: yes
+        state: started
+      when: ansible_pkg_mgr == "dnf"
+
+# =====================================================================
+# 3. Configure NTP (Chrony Cross-Distro Configuration)
+# =====================================================================
+- name: Configure NTP via chrony
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  vars:
+    # Correct OS family → file path selection
+    chrony_conf_path: >-
+      {{ '/etc/chrony.conf'
+         if ansible_facts.os_family == 'RedHat'
+         else '/etc/chrony/chrony.conf' }}
+
+    # Correct OS family → service selection
+    chrony_service: >-
+      {{ 'chronyd'
+         if ansible_facts.os_family == 'RedHat'
+         else 'chrony' }}
+
+  tasks:
+
+    - name: Install chrony
+      package:
+        name: chrony
+        state: present
+
+    - name: Configure chrony server
+      lineinfile:
+        path: "{{ chrony_conf_path }}"
+        regexp: '^server '
+        line: "server 10.1.55.9 iburst"
+        backup: yes
+
+    - name: Restart chrony service
+      service:
+        name: "{{ chrony_service }}"
+        state: restarted
+        enabled: yes
+
+# =====================================================================
+# 4. Install baseline packages (Ubuntu / Rocky / RHEL)
+# =====================================================================
+- name: Install baseline packages
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  tasks:
+
+    # -------------------------
+    # Debian/Ubuntu BASELINE
+    # -------------------------
+    - name: apt baseline packages
+      apt:
+        name:
+          - zsh
+          - stow
+          - git
+          - htop
+          - curl
+          - wget
+          - mc
+          - tmux
+          - net-tools
+          - unzip
+          - ripgrep
+          - fzf
+          - zoxide
+          - fd-find     # <-- installs fdfind
+        state: latest
+        update_cache: true
+      when: ansible_pkg_mgr == "apt"
+
+    - name: Symlink fdfind → fd (Ubuntu/Debian)
+      file:
+        src: /usr/bin/fdfind
+        dest: /usr/local/bin/fd
+        state: link
+        force: yes
+      when:
+        - ansible_pkg_mgr == "apt"
+        - ansible_facts['distribution'] in ["Ubuntu", "Debian"]
+        - ansible_facts['os_family'] == "Debian"
+
+    # -------------------------
+    # RHEL / Rocky / AlmaLinux
+    # -------------------------
+    - name: Enable EPEL on Rocky/Alma (epel-release package)
+      dnf:
+        name: epel-release
+        state: present
+      when:
+        - ansible_pkg_mgr == "dnf"
+        - ansible_distribution in ["Rocky", "AlmaLinux"]
+
+    - name: Enable EPEL on RHEL (download and install EPEL RPM)
+      dnf:
+        name: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-{{ ansible_distribution_major_version }}.noarch.rpm"
+        state: present
+        disable_gpg_check: yes
+      when:
+        - ansible_pkg_mgr == "dnf"
+        - ansible_distribution == "RedHat"
+
+    - name: dnf baseline core packages (Rocky/Alma)
+      dnf:
+        name:
+          - zsh
+          - stow
+          - git
+          - htop
+          - curl
+          - wget
+          - mc
+          - tmux
+          - net-tools
+          - unzip
+          - ripgrep
+          - fzf
+          - zoxide
+        state: latest
+      when:
+        - ansible_pkg_mgr == "dnf"
+        - ansible_distribution in ["Rocky", "AlmaLinux"]
+
+    - name: dnf baseline core packages (RHEL - best effort)
+      dnf:
+        name:
+          - zsh
+          - stow
+          - git
+          - htop
+          - curl
+          - wget
+          - mc
+          - tmux
+          - net-tools
+          - unzip
+          - ripgrep
+          - fzf
+          - zoxide
+        state: latest
+      when:
+        - ansible_pkg_mgr == "dnf"
+        - ansible_distribution == "RedHat"
+      ignore_errors: yes
+
+    - name: dnf optional extras (best-effort--fd-find, fastfetch)
+      dnf:
+        name: "{{ item }}"
+        state: latest
+      loop:
+        - fd-find       # via EPEL, may not exist everywhere
+        - fastfetch     # via EPEL/3rd party, may not exist
+      when: ansible_pkg_mgr == "dnf"
+      ignore_errors: yes
+
+    - name: Ensure fd-find binary symlink exists on RHEL-family
+      file:
+        src: /usr/bin/fdfind
+        dest: /usr/local/bin/fd
+        state: link
+        force: yes
+      when:
+        - ansible_pkg_mgr == "dnf"
+        - ansible_facts['os_family'] == "RedHat"
+        - ansible_facts['distribution'] in ["Rocky", "RedHat", "AlmaLinux"]
+      ignore_errors: yes
+
+# =====================================================================
+# 5. Prepare user directories
+# =====================================================================
+- name: Ensure user directories exist and are writable
+  hosts: all
+  become: yes
+  vars:
+    user: "mklouda"
+
+  tasks:
+
+    - name: Ensure local hierarchy exists
+      file:
+        path: "/home/{{ user }}/{{ item }}"
+        state: directory
+        owner: "{{ user }}"
+        group: "{{ user }}"
+        mode: "0755"
+      loop:
+        - .local
+        - .local/bin
+        - .local/share
+        - .cache
+
+# =====================================================================
+# 6. Install Oh My Posh (as user)
+# =====================================================================
+- name: Install Oh My Posh (user install)
+  hosts: all
+  become: yes
+  vars:
+    user: "mklouda"
+
+  tasks:
+
+    - name: Ensure unzip is installed (required by OMP installer)
+      package:
+        name: unzip
+        state: present
+      ignore_errors: true
+      register: unzip_result
+
+    - name: Install OMP as user
+      become_user: "{{ user }}"
+      shell: |
+        export HOME=/home/{{ user }}
+        export XDG_DATA_HOME=$HOME/.local/share
+        export PATH="$HOME/.local/bin:$PATH"
+        mkdir -p "$HOME/.local/bin"
+        curl -s https://ohmyposh.dev/install.sh | bash -s -- -d "$HOME/.local/bin"
+      args:
+        executable: /bin/bash
+      when: unzip_result is succeeded
+
+# =====================================================================
+# 7. Clone dotfiles + stow packages
+# =====================================================================
+- name: Deploy dotfiles with stow
+  hosts: all
+  become: yes
+  vars:
+    user: "mklouda"
+    dotdir: "/home/{{ user }}/dotfiles"
+
+  tasks:
+
+    - name: Check if git is available
+      command: which git
+      register: git_check
+      changed_when: false
+      ignore_errors: true
+
+    - name: Clone dotfiles repo as user
+      become_user: "{{ user }}"
+      git:
+        repo: "https://github.com/valowmfk/dotfiles.git"
+        dest: "{{ dotdir }}"
+        version: main
+      when: git_check is succeeded
+
+    - name: Check if stow is available
+      command: which stow
+      register: stow_check
+      changed_when: false
+      ignore_errors: true
+
+    - name: Stow dotfiles packages
+      become_user: "{{ user }}"
+      shell: |
+        cd {{ dotdir }}
+        stow config
+        stow zsh
+      args:
+        executable: /bin/bash
+      when: git_check is succeeded and stow_check is succeeded
+
+# =====================================================================
+# 8. Install OS-Specific MOTD
+# =====================================================================
+- name: Install Q Branch MOTD (OS-aware)
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  tasks:
+
+    # ---------------- Debian / Ubuntu ----------------
+    - name: Install MOTD – Debian Family
+      copy:
+        dest: /etc/motd
+        mode: "0644"
+        content: |
+          ************************************************************
+                    Q BRANCH — EXPERIMENTAL SYSTEMS DIVISION
+                         Authorized Personnel Only
+
+          Hostname: {{ inventory_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+
+          Debian-Class System Detected  
+          Apt subsystem online.  
+          Agents: calm, efficient, deadly.
+
+          ************************************************************
+      when: ansible_facts['os_family'] == "Debian"
+
+    # ---------------- RHEL / Rocky / Alma ----------------
+    - name: Install MOTD – RHEL Family
+      copy:
+        dest: /etc/motd
+        mode: "0644"
+        content: |
+          ************************************************************
+                    Q BRANCH — EXPERIMENTAL SYSTEMS DIVISION
+                         Authorized Personnel Only
+
+          Hostname: {{ inventory_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+
+          RHEL-Class System Detected  
+          DNF subsystem active.  
+          Tactical-grade stability engaged.
+
+          ************************************************************
+      when: ansible_facts['os_family'] == "RedHat"
+
+    # ---------------- Fallback (should rarely be hit) ----------------
+    - name: Install MOTD – Unknown OS
+      copy:
+        dest: /etc/motd
+        mode: "0644"
+        content: |
+          ************************************************************
+                    Q BRANCH — EXPERIMENTAL SYSTEMS DIVISION
+                         CAUTION: UNKNOWN PLATFORM
+
+          Hostname: {{ inventory_hostname }}
+          OS Family: {{ ansible_facts['os_family'] }}
+
+          This system does not match any known classification.  
+          Proceed with heightened awareness.
+
+          ************************************************************
+      when: ansible_facts['os_family'] not in ["RedHat", "Debian"]
+
+# =====================================================================
+# 9. Enable ZSH as login shell
+# =====================================================================
+- name: Enable ZSH as login shell (safe)
+  hosts: all
+  become: yes
+  vars:
+    user: "mklouda"
+
+  tasks:
+
+    - name: Check if zsh exists
+      stat:
+        path: /bin/zsh
+      register: zshcheck
+
+    - name: Change login shell
+      user:
+        name: "{{ user }}"
+        shell: /bin/zsh
+      when: zshcheck.stat.exists
+
+# =====================================================================
+# 10. Copy Oh My Posh binary to /usr/local/bin (if present)
+# =====================================================================
+- name: Copy oh-my-posh system-wide
+  hosts: all
+  become: yes
+
+  tasks:
+
+    - name: Check if user-level oh-my-posh exists
+      stat:
+        path: "/home/mklouda/.local/bin/oh-my-posh"
+      register: omp_bin
+
+    - name: Copy oh-my-posh to /usr/local/bin
+      copy:
+        src: "/home/mklouda/.local/bin/oh-my-posh"
+        dest: "/usr/local/bin/oh-my-posh"
+        mode: "0755"
+      when: omp_bin.stat.exists

@@ -1,0 +1,7 @@
+creation_rules:
+  - path_regex: '\.enc\.env$'
+    age: '{{ age_public_key }}'
+  - path_regex: '\.enc\.yaml$'
+    age: '{{ age_public_key }}'
+  - path_regex: '\.enc\.tfvars$'
+    age: '{{ age_public_key }}'

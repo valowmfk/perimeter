@@ -1,0 +1,183 @@
+                    <!-- CERTIFICATE MANAGEMENT DRAWER -->
+                    <button type="button"
+                            class="q-telemetry-toggle"
+                            data-action="toggle-certificates"
+                            aria-expanded="false"
+                            aria-controls="certificateManagementDrawer">
+                        <span class="q-drawer-label"><img src="/static/assets/icon-certbot.svg" alt="" class="q-drawer-icon"> Certificate Management</span>
+                        <span id="certManagementCount" class="q-mission-timer">Let's Encrypt + Cloudflare DNS</span>
+                    </button>
+
+                    <div id="certificateManagementDrawer" class="q-telemetry-drawer q-provision-drawer">
+                        <div class="q-provision-content">
+                            <!-- Certificate Configuration -->
+                            <div class="q-panel" style="overflow-y:auto;">
+                                <h2>Let's Encrypt + Cloudflare DNS Challenge</h2>
+                                <div class="q-divider"></div>
+
+                                <!-- Base Domain Selection -->
+                                <label for="certBaseDomainSelect">Base Domain</label>
+                                <div class="q-field-row">
+                                    <select class="q-input" id="certBaseDomainSelect">
+                                        <option value="">-- Select Base Domain --</option>
+                                        <option value="valowgaming.com">valowgaming.com</option>
+                                        <option value="sinkscanyon.net">sinkscanyon.net</option>
+                                        <option value="klouda.co">klouda.co</option>
+                                        <option value="klouda.work">klouda.work</option>
+                                    </select>
+                                    <button type="button" class="q-mini-btn" data-action="refresh-cert-domains">↻</button>
+                                </div>
+
+                                <!-- Common Name (CN) Input -->
+                                <label for="certCommonName">Common Name (CN) - Hostname/Subdomain</label>
+                                <input type="text" class="q-input" id="certCommonName"
+                                       placeholder="e.g., claude.q, api, www (leave blank for wildcard)"
+                                       >
+                                <div class="q-hint">
+                                    Enter subdomain prefix (e.g., "claude.q" for claude.q.valowgaming.com)
+                                </div>
+
+                                <!-- Wildcard Checkbox -->
+                                <label class="q-checkbox-label">
+                                    <input type="checkbox" id="certWildcard">
+                                    Use Wildcard Certificate (*.domain.com)
+                                </label>
+
+                                <!-- Subject Alternative Names (SANs) -->
+                                <label for="certSANs">Subject Alternative Names (SANs) - Additional Hostnames</label>
+                                <input type="text" class="q-input" id="certSANs"
+                                       placeholder="e.g., www, mail, api (comma-separated)"
+                                       >
+                                <div class="q-hint">
+                                    Additional hostnames (comma-separated, will be prepended to base domain)
+                                </div>
+
+                                <!-- Certificate Preview -->
+                                <div id="certPreview" class="q-cert-preview-panel" style="display: none;">
+                                    <div class="q-cert-preview-header">Certificate Preview:</div>
+                                    <div id="certPreviewContent" class="q-cert-preview-content"></div>
+                                </div>
+
+                                <!-- Current Certificate Info -->
+                                <div id="certInfo" class="q-cert-info-panel" style="display: none;">
+                                    <div class="q-cert-info-row">
+                                        <span class="q-cert-info-label">Status:</span>
+                                        <span id="certStatus" class="q-cert-status-badge">Valid</span>
+                                    </div>
+                                    <div class="q-cert-info-row">
+                                        <span class="q-cert-info-label">Expires:</span>
+                                        <span id="certExpiry">-</span>
+                                    </div>
+                                    <div class="q-cert-info-row">
+                                        <span class="q-cert-info-label">Issued:</span>
+                                        <span id="certIssued">-</span>
+                                    </div>
+                                    <div class="q-cert-info-row">
+                                        <span class="q-cert-info-label">Serial:</span>
+                                        <span id="certSerial" style="font-family: monospace; font-size: 11px;">-</span>
+                                    </div>
+                                </div>
+
+                                <!-- Certificate Action -->
+                                <label for="certActionSelect">Action</label>
+                                <select class="q-input" id="certActionSelect">
+                                    <option value="obtain">Obtain New Certificate</option>
+                                    <option value="renew">Renew Certificate</option>
+                                    <option value="force-renew">Force Renew (ignore expiry)</option>
+                                    <option value="revoke">Revoke Certificate</option>
+                                </select>
+
+                                <!-- Ansible Playbook Generation -->
+                                <label class="q-checkbox-label">
+                                    <input type="checkbox" id="certCreatePlaybook">
+                                    Create Ansible Playbook for this certificate
+                                </label>
+
+                                <!-- Ansible Playbook Name (shown when checkbox is checked) -->
+                                <div id="certPlaybookNameSection" style="display: none; margin-top: 10px;">
+                                    <label for="certTargetType">Deployment Target Type</label>
+                                    <select class="q-input" id="certTargetType">
+                                        <option value="linux_wildcard">Linux - Wildcard Certificate</option>
+                                        <option value="linux_common_name">Linux - Common Name Certificate</option>
+                                        <option value="vthunder_vip">vThunder - VIP Certificate</option>
+                                    </select>
+                                    <div class="q-hint">
+                                        Select the type of deployment target for this certificate
+                                    </div>
+
+                                    <!-- vThunder Configuration (shown when vThunder target is selected) -->
+                                    <div id="certVthunderSection" style="display: none;">
+                                        <label for="certVthunderGroup">vThunder Inventory Group</label>
+                                        <select class="q-input" id="certVthunderGroup">
+                                            <option value="">Select group...</option>
+                                        </select>
+                                        <div class="q-hint">
+                                            Select the inventory group containing vThunder appliances
+                                        </div>
+
+                                        <label for="certVthunderHost">vThunder Host</label>
+                                        <select class="q-input" id="certVthunderHost">
+                                            <option value="">Select host...</option>
+                                        </select>
+                                        <div class="q-hint">
+                                            Select the vThunder appliance
+                                        </div>
+
+                                        <label for="certVthunderPartition">Partition</label>
+                                        <select class="q-input" id="certVthunderPartition">
+                                            <option value="">Select partition...</option>
+                                        </select>
+                                        <div class="q-hint">
+                                            Select the partition to upload the certificate to
+                                        </div>
+
+                                        <div class="q-hint" style="margin-top: 10px; padding: 8px; background: rgba(0,255,0,0.1); border-radius: 4px;">
+                                            <strong>Note:</strong> This playbook only uploads certificates.
+                                            VIP configuration is managed in 00-a10-build.yml
+                                        </div>
+                                    </div>
+
+                                    <label for="certPlaybookName">Playbook Name (optional)</label>
+                                    <input type="text" class="q-input" id="certPlaybookName"
+                                           placeholder="Auto-generated if left empty">
+                                    <div class="q-hint">
+                                        Playbook will be saved to: /home/mklouda/automation-demo/playbooks/
+                                    </div>
+                                </div>
+
+                                <!-- Advanced Options (Collapsible) -->
+                                <button type="button" class="q-cert-advanced-toggle" data-action="toggle-cert-advanced" aria-expanded="false" aria-controls="certAdvancedOptions">
+                                    <span id="certAdvancedToggleText">▶ Advanced Options</span>
+                                </button>
+                                <div id="certAdvancedOptions" style="display: none; margin-top: 10px;">
+                                    <label for="certEmail">Email for Let's Encrypt notifications</label>
+                                    <input type="email" class="q-input" id="certEmail" placeholder="admin@example.com">
+
+                                    <label for="certEnvSelect">Environment</label>
+                                    <select class="q-input" id="certEnvSelect">
+                                        <option value="production">Production</option>
+                                        <option value="staging">Staging (Test Certificates)</option>
+                                    </select>
+
+                                    <label class="q-checkbox-label">
+                                        <input type="checkbox" id="certDryRun">
+                                        Dry Run (test without making changes)
+                                    </label>
+
+                                    <label for="certExtraFlags">Additional certbot flags</label>
+                                    <input type="text" class="q-input" id="certExtraFlags"
+                                           placeholder="e.g., --key-type rsa --rsa-key-size 4096">
+                                    <div class="q-hint">
+                                        Advanced: Additional command-line flags for certbot
+                                    </div>
+                                </div>
+
+                                <button class="q-button" data-action="execute-cert">EXECUTE CERTIFICATE ACTION</button>
+
+                                <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+                                    <div id="certSpinner" class="q-spinner" style="display: none;"></div>
+                                    <div id="certExecuteStatus" class="q-status"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>

@@ -1,0 +1,86 @@
+<!-- UNIFIED HEADER (Theme-aware) -->
+<header class="unified-header" role="banner">
+    <div class="unified-header-left">
+        <img id="themeLogo" src="/static/assets/perimeter/perimeter-logo.svg" alt="Perimeter" class="unified-logo">
+        <div class="unified-title-block">
+            <div id="themeTitle" class="unified-title">Perimeter</div>
+            <div id="themeSubtitle" class="unified-subtitle">Automation Platform</div>
+        </div>
+    </div>
+    <div class="unified-header-right">
+        <span id="themeTag" class="unified-header-tag">VM · Ansible · Certificates · Live Telemetry</span>
+
+        <select id="themeSelector" class="theme-selector" aria-label="Theme">
+            <option value="perimeter">Perimeter</option>
+            <option value="a10">A10</option>
+        </select>
+    </div>
+</header>
+
+<!-- PROXMOX STATUS STRIP (Perimeter only) -->
+<nav id="proxmoxStrip" class="q-proxmox-strip" aria-label="System status">
+    <div class="q-cert-strip-toggle" data-action="toggle-proxmox-flyout" role="button" tabindex="0" aria-expanded="false" aria-label="Toggle Proxmox cluster flyout">
+        <span class="q-strip-label">PROXMOX CLUSTER · goldfinger</span>
+        <span id="proxmoxStatusBadge" class="q-strip-badge q-strip-badge-unknown" aria-live="polite">
+            unknown
+        </span>
+        <span id="proxmoxStatusMeta" class="q-strip-meta" aria-live="polite">
+            Waiting for first health sample…
+        </span>
+        <span class="q-cert-strip-chevron" id="proxmoxChevron">▾</span>
+
+        <!-- PROXMOX CLUSTER FLYOUT -->
+        <div id="proxmoxFlyout" class="q-cert-flyout" style="display:none; min-width: 520px; left: 0; right: auto;">
+            <div class="q-cert-flyout-header">
+                <span>Proxmox Cluster Management</span>
+            </div>
+            <div class="q-cert-flyout-content" style="max-height: 400px; overflow-y: auto;">
+                <!-- Node Status -->
+                <div style="padding: 8px 12px; border-bottom: 1px solid rgba(71,85,105,0.3);">
+                    <div style="font-size: 11px; font-weight: 600; color: #94a3b8; margin-bottom: 6px;">NODE STATUS</div>
+                    <div id="proxmoxNodeStatus" style="font-size: 12px; color: #cbd5e1;">Loading...</div>
+                </div>
+
+                <!-- Templates -->
+                <div style="padding: 8px 12px;">
+                    <div style="font-size: 11px; font-weight: 600; color: #94a3b8; margin-bottom: 6px;">TEMPLATES</div>
+                    <table class="q-table" style="font-size: 12px;">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>VMID</th>
+                                <th>Type</th>
+                                <th>Last Updated</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="proxmoxTemplateBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Certificate Info (clickable) -->
+    <span class="q-strip-separator">|</span>
+    <div class="q-cert-strip-toggle" data-action="toggle-cert-flyout" role="button" tabindex="0" aria-expanded="false" aria-label="Toggle certificate status flyout">
+        <span class="q-strip-label">CERTIFICATES</span>
+        <span id="certCountStrip" class="q-strip-meta">-</span>
+        <span class="q-strip-separator">·</span>
+        <span class="q-strip-meta-label">Next Expiry:</span>
+        <span id="nextExpiryStrip" class="q-strip-meta">-</span>
+        <span class="q-cert-strip-chevron" id="certChevron">▾</span>
+        <!-- CERTIFICATE STATUS FLYOUT (inside toggle for positioning) -->
+        <div id="certFlyout" class="q-cert-flyout" style="display:none;">
+            <div class="q-cert-flyout-header">
+                <span>Certificate Status</span>
+                <span id="certFlyoutSummary" class="q-cert-flyout-summary"></span>
+            </div>
+            <div id="certFlyoutContent" class="q-cert-flyout-content">
+                <div class="q-cert-flyout-loading">Loading certificate data...</div>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<div class="toast" id="toast" role="status" aria-live="polite">Copied!</div>

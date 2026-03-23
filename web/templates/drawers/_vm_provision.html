@@ -1,0 +1,133 @@
+                    <!-- VM ORCHESTRATION PLAN DRAWER -->
+                    <button type="button"
+                            class="q-telemetry-toggle"
+                            data-action="toggle-vm-provision"
+                            aria-expanded="false"
+                            aria-controls="vmProvisionDrawer">
+                        <span class="q-drawer-label"><img src="/static/assets/icon-terraform.svg" alt="" class="q-drawer-icon"> VM Orchestration Plan</span>
+                        <span id="vmProvisionCount" class="q-mission-timer">Ready</span>
+                    </button>
+
+                    <div id="vmProvisionDrawer" class="q-telemetry-drawer q-provision-drawer">
+                        <div class="q-provision-content">
+                            <!-- Existing VMIDs -->
+                            <div class="q-panel q-panel-slim">
+                                <h3>Existing VMIDs</h3>
+                                <div class="q-panel-subtitle">Live from Proxmox cluster</div>
+                                <ul id="vmidList" class="q-list"></ul>
+                            </div>
+
+                            <!-- Provision form + Telemetry -->
+                            <div class="q-panel">
+                                <h2>Provision New Virtual Machine</h2>
+                                <div class="q-divider"></div>
+
+                                <!-- Step 1: Workload Type (always visible) -->
+                                <label for="vm_type">Workload Type</label>
+                                <select class="q-input" id="vm_type">
+                                    <option value="">-- Select Workload Type --</option>
+                                    <option value="linux">Linux VM</option>
+                                    <option value="vthunder">A10 vThunder</option>
+                                    <option value="vyos">VyOS Router</option>
+                                </select>
+
+                                <!-- Remaining fields (hidden until workload type selected) -->
+                                <div id="provisionFields" style="display: none;">
+                                    <label for="template">Template</label>
+                                    <select class="q-input" id="template">
+                                        <option value="">-- Select Template --</option>
+                                        {% for t in templates %}
+                                            <option value="{{ t.name }}" data-vmid="{{ t.vmid }}" data-type="{{ 'vthunder' if t.name.startswith('acos') else 'linux' }}">{{ t.name }}</option>
+                                        {% endfor %}
+                                    </select>
+
+                                    <div class="q-field-row">
+                                        <label for="hostname">Hostname</label>
+                                        <button type="button" class="q-mini-btn" data-action="generate-hostname" aria-label="Generate random hostname">🎲 Generate</button>
+                                    </div>
+                                    <input class="q-input" id="hostname" placeholder="e.g. snmp or snmp.home.klouda.co"/>
+
+                                    <label for="subnet">Subnet</label>
+                                    <select class="q-input" id="subnet">
+                                        <!-- Populated dynamically from /api/subnets -->
+                                    </select>
+
+                                    <label for="ip">IP Address</label>
+                                    <div class="q-ip-input-wrapper">
+                                        <input class="q-input" id="ip" placeholder="10.1.55.x" aria-describedby="ipValidationMsg"/>
+                                        <span id="ipValidationIndicator" class="q-ip-validation-indicator"></span>
+                                    </div>
+                                    <div id="ipValidationMsg" class="q-ip-validation-msg"></div>
+
+                                    <div class="q-field-row">
+                                        <label for="vm_id">VM ID</label>
+                                        <span id="vmIdHint" class="q-hint">Choose a free ID from the list.</span>
+                                    </div>
+                                    <div class="q-ip-input-wrapper">
+                                        <input class="q-input" id="vm_id" type="number" placeholder="e.g. 8000" aria-describedby="vmIdHint vmIdValidationMsg"/>
+                                        <span id="vmIdValidationIndicator" class="q-ip-validation-indicator"></span>
+                                    </div>
+                                    <div id="vmIdValidationMsg" class="q-ip-validation-msg"></div>
+
+                                    <label for="node">Node</label>
+                                    <select class="q-input" id="node">
+                                        <option value="goldfinger">goldfinger</option>
+                                    </select>
+
+                                    <!-- Resource Customization (Linux only) -->
+                                    <div id="resourceFields" style="display: none;">
+                                        <div class="q-field-row">
+                                            <label for="cpu">CPU Cores</label>
+                                            <input class="q-input q-input-sm" id="cpu" type="number" min="1" max="16" value="2" style="width: 100px;"/>
+                                        </div>
+                                        <div class="q-field-row">
+                                            <label for="ram">RAM (MB)</label>
+                                            <input class="q-input q-input-sm" id="ram" type="number" min="512" max="65536" step="512" value="4096" style="width: 100px;"/>
+                                        </div>
+                                        <div class="q-field-row">
+                                            <label for="disk">Disk (GB)</label>
+                                            <input class="q-input q-input-sm" id="disk" type="number" min="10" max="500" value="32" style="width: 100px;"/>
+                                        </div>
+                                    </div>
+
+                                    <div class="q-field-row">
+                                        <label for="nicCount">Network Interfaces</label>
+                                        <select class="q-input q-input-sm" id="nicCount" style="width: 80px; margin-left: auto;">
+                                            <option value="1">1 NIC</option>
+                                            <option value="2">2 NICs</option>
+                                            <option value="3">3 NICs</option>
+                                            <option value="4">4 NICs</option>
+                                        </select>
+                                    </div>
+                                    <div id="nicContainer">
+                                        <div class="q-nic-row">
+                                            <span class="q-nic-label">NIC 1 (mgmt)</span>
+                                            <select class="q-input q-nic-select" id="bridge_0">
+                                                <option value="vmbr0">vmbr0</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <button class="q-button" data-action="start-deploy">INITIATE PROVISIONING</button>
+
+                                    <div id="deployStatus" class="q-status"></div>
+                                </div>
+
+                                <!-- TELEMETRY DRAWER (INSIDE PROVISION PANEL) -->
+                                <div class="q-telemetry-container">
+                                    <button type="button"
+                                            class="q-telemetry-toggle"
+                                            data-action="toggle-telemetry"
+                                            aria-expanded="false"
+                                            aria-controls="telemetryDrawer">
+                                        🛈 Telemetry Summary
+                                        <span id="missionTimer" class="q-mission-timer">00:00</span>
+                                    </button>
+
+                                    <div id="telemetryDrawer" class="q-telemetry-drawer">
+                                        <ul id="telemetryList" class="q-telemetry"></ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>

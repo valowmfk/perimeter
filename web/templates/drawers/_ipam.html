@@ -1,0 +1,44 @@
+                    <!-- IPAM DRAWER -->
+                    <button type="button"
+                            class="q-telemetry-toggle"
+                            data-action="toggle-ipam"
+                            aria-expanded="false"
+                            aria-controls="ipamDrawer">
+                        <span class="q-drawer-label"><img src="/static/assets/icon-netbox.svg" alt="" class="q-drawer-icon"> IPAM &middot; Netbox</span>
+                        <span id="ipamCount" class="q-mission-timer">-</span>
+                    </button>
+
+                    <div id="ipamDrawer" class="q-telemetry-drawer q-provision-drawer">
+                        <div class="q-provision-content" style="flex-direction:column;">
+                            <div class="q-panel" style="overflow-y:auto;">
+                                <div class="q-ipam-header-row">
+                                    <h2>Netbox IPAM</h2>
+                                    <select id="ipamSubnetSelect" class="q-input" style="width:auto; font-size:12px; padding:4px 8px; margin:0 8px;">
+                                        <!-- Populated from /api/subnets -->
+                                    </select>
+                                    <button type="button" class="q-mini-btn" data-action="refresh-ipam">&#8635; Refresh</button>
+                                </div>
+                                <div class="q-divider"></div>
+
+                                <div id="ipamLoading" class="q-ipam-loading" style="display:none;">
+                                    <div class="q-spinner" style="margin:0 auto;"></div>
+                                    <div style="margin-top:8px;">Loading IPAM data from Netbox...</div>
+                                </div>
+
+                                <div id="ipamError" class="q-ipam-error" style="display:none;"></div>
+
+                                <div id="ipamTableContainer" style="display:none;">
+                                    <table class="q-table q-ipam-table">
+                                        <thead>
+                                            <tr>
+                                                <th>IP Address</th>
+                                                <th>Hostname / DNS</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="ipamTableBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>

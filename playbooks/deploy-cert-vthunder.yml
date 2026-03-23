@@ -1,0 +1,74 @@
+---
+# Unified vThunder certificate deployment playbook
+# Replaces individual per-domain cert playbooks
+#
+# Usage:
+#   ansible-playbook playbooks/deploy-cert-vthunder.yml \
+#     -e vthunder_host=vth-auto.home.klouda.co \
+#     -e domain=auto.klouda.work \
+#     -e partition_name=automation
+#
+# Optional overrides:
+#   -e cert_file=cert.pem          (default: fullchain.pem)
+#   -e vthunder_port=443           (default: 443)
+#   -e vthunder_username=admin     (default: admin)
+
+- name: Upload Certificate to A10 vThunder
+  hosts: localhost
+  gather_facts: no
+  connection: local
+
+  vars:
+    # Required — must be passed via --extra-vars
+    # vthunder_host: "..."
+    # domain: "..."
+    # partition_name: "..."
+
+    # Derived from domain
+    cert_name: "{{ domain | replace('.', '_') | replace('*', 'wildcard') }}"
+    base_domain: "{{ domain.split('.')[-2:] | join('.') }}"
+    cert_source_dir: "/home/mklouda/automation-demo/certificates/{{ base_domain }}/live/{{ domain }}"
+
+    # Cert file — fullchain includes intermediates for proper chain validation
+    cert_file: "fullchain.pem"
+
+    # vThunder connection
+    vthunder_username: "admin"
+    vthunder_password: "{{ lookup('pipe', '/home/mklouda/automation-demo/scripts/get-secret.sh VTH_ADMIN_PASS') }}"
+    vthunder_port: 443
+
+  pre_tasks:
+    - name: Validate required variables
+      assert:
+        that:
+          - vthunder_host is defined and vthunder_host | length > 0
+          - domain is defined and domain | length > 0
+          - partition_name is defined and partition_name | length > 0
+        fail_msg: "Required variables: vthunder_host, domain, partition_name"
+
+  tasks:
+    - name: Upload certificate and key to vThunder
+      command: >
+        python3 /home/mklouda/automation-demo/python/helpers/upload_cert_to_vthunder.py
+        --host "{{ vthunder_host }}"
+        --port "{{ vthunder_port }}"
+        --username "{{ vthunder_username }}"
+        --password "{{ vthunder_password }}"
+        --partition "{{ partition_name }}"
+        --cert-name "{{ cert_name }}"
+        --cert-file "{{ cert_source_dir }}/{{ cert_file }}"
+        --key-file "{{ cert_source_dir }}/privkey.pem"
+      register: upload_result
+      changed_when: "'Success' in upload_result.stdout"
+
+    - name: Display upload result
+      debug:
+        var: upload_result.stdout_lines
+
+    - name: Summary
+      debug:
+        msg:
+          - "Device: {{ vthunder_host }}"
+          - "Certificate: {{ cert_name }} ({{ cert_file }})"
+          - "Partition: {{ partition_name }}"
+          - "Domain: {{ domain }}"

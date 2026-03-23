@@ -1,0 +1,49 @@
+                    <!-- vThunder SLB Manager DRAWER -->
+                    <button type="button"
+                            class="q-telemetry-toggle"
+                            data-action="toggle-vip-manager"
+                            aria-expanded="false"
+                            aria-controls="vipManagerDrawer">
+                        <span class="q-drawer-label"><img src="/static/assets/a10-favicon.png" alt="" class="q-drawer-icon"> vThunder SLB Manager</span>
+                        <span id="vipManagerStatus" class="q-mission-timer">Ready</span>
+                    </button>
+
+                    <div id="vipManagerDrawer" class="q-telemetry-drawer q-provision-drawer">
+                        <div style="padding: 12px;">
+                            <!-- Device Selection -->
+                            <div style="display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px;">
+                                <div style="flex: 1; min-width: 140px;">
+                                    <label style="font-size: 11px; color: #94a3b8;">Group</label>
+                                    <select id="vipMgrGroup" class="q-input" style="width:100%;"><option value="">-- Select --</option></select>
+                                </div>
+                                <div style="flex: 1; min-width: 140px;">
+                                    <label style="font-size: 11px; color: #94a3b8;">Host</label>
+                                    <select id="vipMgrHost" class="q-input" style="width:100%;"><option value="">-- Select --</option></select>
+                                </div>
+                                <div style="flex: 1; min-width: 140px;">
+                                    <label style="font-size: 11px; color: #94a3b8;">Partition</label>
+                                    <select id="vipMgrPartition" class="q-input" style="width:100%;"><option value="">-- Select --</option></select>
+                                </div>
+                                <button type="button" class="q-button" data-action="vip-load" style="font-size: 12px; white-space: nowrap;">Load VIPs</button>
+                                <button type="button" class="q-button" data-action="vip-create-open" style="font-size: 12px; background: #0d9488; white-space: nowrap;">+ Create VIP</button>
+                            </div>
+
+                            <!-- VIP Table -->
+                            <table class="q-table" id="vipTable" style="display:none;">
+                                <thead>
+                                    <tr>
+                                        <th>VIP Name</th>
+                                        <th>IP Address</th>
+                                        <th>Ports</th>
+                                        <th>Service Group</th>
+                                        <th>SSL Template</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="vipTableBody"></tbody>
+                            </table>
+                            <div id="vipEmptyMessage" style="text-align: center; color: #64748b; font-size: 12px; padding: 16px; display:none;">
+                                Select a device and partition, then click Load VIPs.
+                            </div>
+                        </div>
+                    </div>

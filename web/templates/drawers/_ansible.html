@@ -1,0 +1,67 @@
+                    <!-- ANSIBLE ORCHESTRATION DRAWER -->
+                    <button type="button"
+                            class="q-telemetry-toggle"
+                            data-action="toggle-ansible"
+                            aria-expanded="false"
+                            aria-controls="ansibleOrchestrationDrawer">
+                        <span class="q-drawer-label"><img src="/static/assets/icon-ansible.svg" alt="" class="q-drawer-icon"> Ansible Orchestration</span>
+                        <span id="ansibleProvisionCount" class="q-mission-timer">Ready</span>
+                    </button>
+
+                    <div id="ansibleOrchestrationDrawer" class="q-telemetry-drawer q-provision-drawer">
+                        <div class="q-provision-content">
+                            <!-- Ansible Run Configuration -->
+                            <div class="q-panel">
+                                <h2>Run Configuration</h2>
+                                <div class="q-divider"></div>
+
+                                <label for="playbookSelect">Playbook</label>
+                                <div class="q-field-row">
+                                    <select class="q-input" id="playbookSelect">
+                                        {% for pb in playbooks %}
+                                            <option value="{{ pb }}">{{ pb }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="button" class="q-mini-btn" data-action="refresh-playbooks">↻</button>
+                                </div>
+
+                                <label for="inventorySelect">Select Inventory</label>
+                                <div class="q-field-row">
+                                    <select class="q-input" id="inventorySelect">
+                                        {% for inv in inventories %}
+                                            <option value="{{ inv }}">{{ inv }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="button" class="q-mini-btn" data-action="refresh-inventories">↻</button>
+                                </div>
+
+                                <label for="groupSelect">Select Inventory Group (optional)</label>
+                                <select class="q-input" id="groupSelect">
+                                    <option value="">(none - use playbook hosts)</option>
+                                </select>
+
+                                <label for="verbositySelect">Verbosity</label>
+                                <select class="q-input" id="verbositySelect">
+                                    <option value="">Normal</option>
+                                    <option value="-v">-v</option>
+                                    <option value="-vv">-vv</option>
+                                    <option value="-vvv">-vvv</option>
+                                    <option value="-vvvv">-vvvv</option>
+                                </select>
+
+                                <div class="q-inventory-summary">
+                                    <div id="summaryInventory" class="q-summary-line">Inventory: -</div>
+                                    <div id="summaryGroup" class="q-summary-line">Group: (none - using playbook hosts)</div>
+                                    <div id="summaryHosts" class="q-summary-hosts"></div>
+                                </div>
+
+                                <div id="status"></div>
+
+                                <button class="q-button" data-action="run-playbook">RUN PLAYBOOK</button>
+
+                                <div class="q-divider" style="margin-top: 20px;"></div>
+                                <h3 style="margin-top: 20px;">Playbook Viewer</h3>
+                                <pre><code id="playbookView" class="yaml"></code></pre>
+                            </div>
+                        </div>
+                    </div>

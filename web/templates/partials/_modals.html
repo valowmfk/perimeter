@@ -1,0 +1,232 @@
+<!-- CONFIRM MODAL (replaces native confirm() dialogs) -->
+<div id="confirmModal" class="q-confirm-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle" aria-describedby="confirmModalMessage">
+    <div class="q-confirm-modal">
+        <div class="q-confirm-title" id="confirmModalTitle">Confirm</div>
+        <div class="q-confirm-message" id="confirmModalMessage">Are you sure?</div>
+        <div class="q-confirm-actions">
+            <button class="q-button q-confirm-btn-cancel" data-action="confirm-no">Cancel</button>
+            <button class="q-button q-confirm-btn" data-action="confirm-yes">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<!-- CERT VIEW / COPY MODAL -->
+<div id="certViewModal" class="q-cert-modal-overlay" style="display:none;" data-action="close-cert-modal" role="dialog" aria-modal="true" aria-labelledby="certViewTitle">
+    <div class="q-cert-modal">
+        <div class="q-cert-modal-header">
+            <span id="certViewTitle">Certificate</span>
+            <select id="certViewFileSelect" aria-label="Certificate file type">
+                <option value="fullchain.pem">fullchain.pem</option>
+                <option value="cert.pem">cert.pem</option>
+                <option value="chain.pem">chain.pem</option>
+                <option value="privkey.pem">privkey.pem</option>
+            </select>
+        </div>
+        <div class="q-cert-modal-body">
+            <pre id="certViewContent">Loading...</pre>
+        </div>
+        <div class="q-cert-modal-footer">
+            <button class="q-button" data-action="copy-cert">Copy to Clipboard</button>
+            <button class="q-button" data-action="close-cert-modal">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- PROMOTE VM MODAL -->
+<div id="promoteModal" class="q-confirm-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="promoteModalTitle">
+    <div class="q-confirm-modal">
+        <div class="q-confirm-title" id="promoteModalTitle">Promote VM</div>
+        <div class="q-confirm-message">
+            Move <strong id="promoteHostname"></strong> to a production group:
+        </div>
+        <div style="margin: 12px 0;">
+            <select id="promoteGroupSelect" class="q-input" style="width:100%;" aria-label="Target group">
+            </select>
+        </div>
+        <div class="q-confirm-actions">
+            <button class="q-button q-confirm-btn-cancel" data-action="promote-cancel">Cancel</button>
+            <button class="q-button q-confirm-btn" data-action="promote-confirm">Promote</button>
+        </div>
+    </div>
+</div>
+
+<!-- Deploy Cert to vThunder Modal -->
+<div id="deployVthunderModal" class="q-confirm-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="deployVthunderTitle">
+    <div class="q-confirm-modal" style="max-width: 480px;">
+        <div class="q-confirm-title" id="deployVthunderTitle">Deploy Certificate to vThunder</div>
+        <div class="q-confirm-message">
+            Deploy <strong id="deployDomain"></strong> to a vThunder device.
+        </div>
+        <div style="margin: 12px 0;">
+            <label style="font-size: 12px; color: #94a3b8;">Cert File</label>
+            <select id="deployCertFile" class="q-input" style="width:100%;">
+                <option value="fullchain.pem" selected>fullchain.pem (recommended)</option>
+                <option value="cert.pem">cert.pem (leaf only)</option>
+            </select>
+        </div>
+        <div style="margin: 12px 0;">
+            <label style="font-size: 12px; color: #94a3b8;">vThunder Group</label>
+            <select id="deployVthGroup" class="q-input" style="width:100%;">
+                <option value="">-- Select Group --</option>
+            </select>
+        </div>
+        <div style="margin: 12px 0;">
+            <label style="font-size: 12px; color: #94a3b8;">vThunder Host</label>
+            <select id="deployVthHost" class="q-input" style="width:100%;">
+                <option value="">-- Select Host --</option>
+            </select>
+        </div>
+        <div style="margin: 12px 0;">
+            <label style="font-size: 12px; color: #94a3b8;">Partition</label>
+            <select id="deployVthPartition" class="q-input" style="width:100%;">
+                <option value="">-- Select Partition --</option>
+            </select>
+        </div>
+        <div id="deployRenewalStatus" style="margin: 12px 0; padding: 8px 12px; border-radius: 6px; font-size: 12px; display: none;"></div>
+        <div id="deployResult" style="margin: 12px 0; font-size: 12px; display: none;"></div>
+        <div class="q-confirm-actions">
+            <button class="q-button q-confirm-btn-cancel" data-action="deploy-vth-cancel">Cancel</button>
+            <button class="q-button q-confirm-btn" data-action="deploy-vth-execute" id="deployVthExecuteBtn">Deploy</button>
+        </div>
+    </div>
+</div>
+
+<!-- VIP BUILDER MODAL -->
+<div id="vipBuilderModal" class="q-confirm-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="vipBuilderTitle">
+    <div class="q-confirm-modal" style="max-width: 560px;">
+        <div class="q-confirm-title" id="vipBuilderTitle">Create VIP</div>
+
+        <!-- Step 1: Target Device -->
+        <div id="vipStep1">
+            <div class="q-confirm-message" style="margin-bottom: 8px;">Select target vThunder device and partition.</div>
+            <div style="margin: 8px 0;">
+                <label style="font-size: 12px; color: #94a3b8;">vThunder Group</label>
+                <select id="vipVthGroup" class="q-input" style="width:100%;"><option value="">-- Select Group --</option></select>
+            </div>
+            <div style="margin: 8px 0;">
+                <label style="font-size: 12px; color: #94a3b8;">vThunder Host</label>
+                <select id="vipVthHost" class="q-input" style="width:100%;"><option value="">-- Select Host --</option></select>
+            </div>
+            <div style="margin: 8px 0;">
+                <label style="font-size: 12px; color: #94a3b8;">Partition</label>
+                <select id="vipVthPartition" class="q-input" style="width:100%;"><option value="">-- Select Partition --</option></select>
+            </div>
+        </div>
+
+        <!-- Step 2: VIP Configuration -->
+        <div id="vipStep2" style="display:none;">
+            <div class="q-confirm-message" style="margin-bottom: 8px;">Configure the virtual server.</div>
+            <div style="margin: 8px 0;">
+                <label style="font-size: 12px; color: #94a3b8;">VIP Name</label>
+                <input type="text" id="vipName" class="q-input" style="width:100%;" placeholder="e.g. My-WebApp-VIP">
+            </div>
+            <div style="margin: 8px 0;">
+                <label style="font-size: 12px; color: #94a3b8;">VIP IP Address</label>
+                <input type="text" id="vipIp" class="q-input" style="width:100%;" placeholder="e.g. 10.127.70.10">
+            </div>
+            <div style="margin: 8px 0;">
+                <label style="font-size: 12px; color: #94a3b8;">Certificate (on device)</label>
+                <select id="vipCertName" class="q-input" style="width:100%;"><option value="">(none - no SSL)</option></select>
+            </div>
+            <div style="margin: 8px 0;">
+                <label style="font-size: 12px; color: #94a3b8; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="vipHttpRedirect" checked style="accent-color: #06b6d4;">
+                    HTTP → HTTPS redirect (port 80)
+                </label>
+            </div>
+            <div style="margin: 8px 0;">
+                <label style="font-size: 12px; color: #94a3b8; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="vipHealthMonitorEnable" style="accent-color: #06b6d4;">
+                    Create health monitor
+                </label>
+            </div>
+            <div id="vipHealthMonitorConfig" style="display:none; background:rgba(15,23,42,0.4); border:1px solid rgba(71,85,105,0.4); border-radius:6px; padding:10px; margin:8px 0;">
+                <div style="display:flex; gap:8px; margin-bottom:6px;">
+                    <div style="flex:1;">
+                        <label style="font-size:11px; color:#64748b;">Monitor Name</label>
+                        <input type="text" id="vipHmName" class="q-input" style="width:100%;" placeholder="e.g. port-80-hm">
+                    </div>
+                    <div style="flex:0 0 80px;">
+                        <label style="font-size:11px; color:#64748b;">Interval</label>
+                        <input type="number" id="vipHmInterval" class="q-input" style="width:100%;" value="5">
+                    </div>
+                    <div style="flex:0 0 80px;">
+                        <label style="font-size:11px; color:#64748b;">Timeout</label>
+                        <input type="number" id="vipHmTimeout" class="q-input" style="width:100%;" value="1">
+                    </div>
+                </div>
+                <div style="display:flex; gap:8px; margin-bottom:6px;">
+                    <div style="flex:0 0 80px;">
+                        <label style="font-size:11px; color:#64748b;">Retry</label>
+                        <input type="number" id="vipHmRetry" class="q-input" style="width:100%;" value="2">
+                    </div>
+                    <div style="flex:0 0 80px;">
+                        <label style="font-size:11px; color:#64748b;">Up Retry</label>
+                        <input type="number" id="vipHmUpRetry" class="q-input" style="width:100%;" value="4">
+                    </div>
+                    <div style="flex:0 0 80px;">
+                        <label style="font-size:11px; color:#64748b;">HTTP Port</label>
+                        <input type="number" id="vipHmPort" class="q-input" style="width:100%;" value="80">
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:11px; color:#64748b;">URL Path</label>
+                        <input type="text" id="vipHmUrlPath" class="q-input" style="width:100%;" value="/" placeholder="/">
+                    </div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <div style="flex:1;">
+                        <label style="font-size:11px; color:#64748b;">Expect String (optional)</label>
+                        <input type="text" id="vipHmExpect" class="q-input" style="width:100%;" placeholder="e.g. websrv">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Backend Servers -->
+        <div id="vipStep3" style="display:none;">
+            <div class="q-confirm-message" style="margin-bottom: 8px;">Add backend servers for the service group.</div>
+            <div id="vipBackendList"></div>
+            <button type="button" class="q-button" style="font-size: 12px; margin-top: 8px;" data-action="vip-add-backend">+ Add Server</button>
+        </div>
+
+        <!-- Step 4: Review -->
+        <div id="vipStep4" style="display:none;">
+            <div class="q-confirm-message" style="margin-bottom: 8px;">Review configuration before deploying.</div>
+            <div id="vipReviewSummary" style="background: rgba(15,23,42,0.6); border-radius: 6px; padding: 12px; font-size: 12px; font-family: monospace; color: #e2e8f0;"></div>
+        </div>
+
+        <!-- Result -->
+        <div id="vipResult" style="margin: 12px 0; font-size: 12px; display: none;"></div>
+
+        <!-- Navigation -->
+        <div class="q-confirm-actions" style="justify-content: space-between;">
+            <button class="q-button q-confirm-btn-cancel" data-action="vip-cancel">Cancel</button>
+            <div style="display: flex; gap: 8px;">
+                <button class="q-button" data-action="vip-prev" id="vipPrevBtn" style="display:none;">Back</button>
+                <button class="q-button q-confirm-btn" data-action="vip-next" id="vipNextBtn">Next</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- VIP DESTROY CONFIRM MODAL -->
+<div id="vipDestroyModal" class="q-confirm-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="vipDestroyTitle">
+    <div class="q-confirm-modal">
+        <div class="q-confirm-title" id="vipDestroyTitle" style="color: #ef4444;">Destroy VIP</div>
+        <div class="q-confirm-message">
+            Are you sure you want to destroy <strong id="vipDestroyName"></strong>?
+            This will remove the virtual server, SSL template, service group, health monitor, and backend servers.
+        </div>
+        <div style="margin: 12px 0;">
+            <label style="font-size: 12px; color: #94a3b8; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="vipDestroyCleanupServers" checked style="accent-color: #06b6d4;">
+                Also delete backend servers
+            </label>
+        </div>
+        <div id="vipDestroyResult" style="margin: 12px 0; font-size: 12px; display: none;"></div>
+        <div class="q-confirm-actions">
+            <button class="q-button q-confirm-btn-cancel" data-action="vip-destroy-cancel">Cancel</button>
+            <button class="q-button" data-action="vip-destroy-confirm" style="background: #ef4444; color: white;">Destroy</button>
+        </div>
+    </div>
+</div>

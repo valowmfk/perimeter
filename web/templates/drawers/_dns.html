@@ -1,0 +1,59 @@
+                    <!-- DNS MANAGEMENT DRAWER -->
+                    <button type="button"
+                            class="q-telemetry-toggle"
+                            data-action="toggle-dns"
+                            aria-expanded="false"
+                            aria-controls="dnsManagementDrawer">
+                        <span class="q-drawer-label"><img src="/static/assets/icon-pihole.svg" alt="" class="q-drawer-icon"> DNS Management</span>
+                        <span id="dnsManagementStatus" class="q-mission-timer">Pi-hole</span>
+                    </button>
+
+                    <div id="dnsManagementDrawer" class="q-telemetry-drawer q-provision-drawer">
+                        <div class="q-provision-content">
+                            <div class="q-panel" style="overflow-y:auto;">
+                                <h2>Pi-hole DNS Record Management</h2>
+                                <div class="q-divider"></div>
+
+                                <label for="dnsRecordType">Record Type</label>
+                                <select class="q-input" id="dnsRecordType">
+                                    <option value="A">A Record (Host &rarr; IP)</option>
+                                    <option value="CNAME">CNAME Record (Alias &rarr; Target)</option>
+                                </select>
+                                <div class="q-hint">
+                                    A records map a hostname to an IP address. CNAME records create an alias pointing to another hostname.
+                                </div>
+
+                                <label for="dnsHostname">Hostname / Domain</label>
+                                <input type="text" class="q-input" id="dnsHostname"
+                                       placeholder="e.g., myapp.home.klouda.co">
+                                <div class="q-hint">
+                                    Enter the fully qualified domain name
+                                </div>
+
+                                <div id="dnsAFields">
+                                    <label for="dnsIpAddress">IP Address</label>
+                                    <input type="text" class="q-input" id="dnsIpAddress"
+                                           placeholder="e.g., 10.1.55.100">
+                                    <div class="q-hint">
+                                        IPv4 address for the A record
+                                    </div>
+                                </div>
+
+                                <div id="dnsCnameFields" style="display: none;">
+                                    <label for="dnsCnameTarget">Target</label>
+                                    <input type="text" class="q-input" id="dnsCnameTarget"
+                                           placeholder="e.g., myserver.home.klouda.co">
+                                    <div class="q-hint">
+                                        The hostname this alias should resolve to
+                                    </div>
+                                </div>
+
+                                <button class="q-button" data-action="create-dns">CREATE DNS RECORD</button>
+
+                                <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+                                    <div id="dnsSpinner" class="q-spinner" style="display: none;"></div>
+                                    <div id="dnsCreateStatus" class="q-status"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>

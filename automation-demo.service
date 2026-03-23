@@ -1,0 +1,40 @@
+[Unit]
+Description=Perimeter Automation Platform
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mklouda
+Group=mklouda
+
+ExecStart=/usr/bin/python3 -u /home/mklouda/automation-demo/qbranch_app.py
+WorkingDirectory=/home/mklouda/automation-demo
+
+# SOPS decryption needs the Age private key
+Environment=SOPS_AGE_KEY_FILE=/home/mklouda/.config/sops/age/keys.txt
+
+# Logging goes to journald (structured logs also written to logs/perimeter.log)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=perimeter
+
+# Graceful shutdown — allow running terraform/ansible to finish
+KillSignal=SIGTERM
+TimeoutStopSec=90
+
+# Restart on failure, but not on clean exit (e.g. manual stop)
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+# ReadWritePaths allows writes despite ProtectSystem=strict
+ReadWritePaths=/home/mklouda/automation-demo
+ReadWritePaths=/home/mklouda/.ssh
+ReadWritePaths=/home/mklouda/docker
+
+[Install]
+WantedBy=multi-user.target
