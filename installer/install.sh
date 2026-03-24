@@ -105,16 +105,6 @@ esac
 
 ok "Detected: $OS_NAME ($OS_FAMILY family)"
 
-# ── Detect pip flags ──────────────────────────
-# PEP 668 (Ubuntu 23.04+, Debian 12+) blocks system-wide pip installs
-PIP_EXTRA_FLAGS=""
-if [[ "$OS_FAMILY" == "debian" ]]; then
-    if python3 -c "import sysconfig; marker=sysconfig.get_path('stdlib') + '/EXTERNALLY-MANAGED'; import os; exit(0 if os.path.exists(marker) else 1)" 2>/dev/null; then
-        PIP_EXTRA_FLAGS="--break-system-packages"
-        info "PEP 668 detected — using --break-system-packages for pip"
-    fi
-fi
-
 # ── Check existing installation ───────────────
 if [[ -d "$INSTALL_DIR" && -f "$INSTALL_DIR/qbranch_app.py" ]]; then
     warn "Existing installation found at $INSTALL_DIR"
@@ -215,20 +205,18 @@ else
     ok "Age installed: v${AGE_VERSION}"
 fi
 
-# ── Ansible ───────────────────────────────────
+# ── Ansible (system-wide — needed outside venv for playbooks) ──
 header "Installing Ansible"
 
 if command -v ansible-playbook &> /dev/null; then
     ok "Ansible already installed: $(ansible --version | head -1)"
 else
     info "Installing Ansible via pip..."
-    run_quiet pip3 install $PIP_EXTRA_FLAGS ansible
-    # Ensure pip-installed binaries are in PATH
+    run_quiet pip3 install --break-system-packages ansible
     export PATH="/usr/local/bin:$HOME/.local/bin:$PATH"
     ok "Ansible installed: $(ansible --version 2>/dev/null | head -1 || echo 'installed')"
 fi
 
-# Ensure all installed binaries are findable for the Python setup
 export PATH="/usr/local/bin:$HOME/.local/bin:$PATH"
 
 # ── Docker (optional — checked during Python setup) ──
@@ -264,11 +252,30 @@ else
     ok "Perimeter installed to $INSTALL_DIR"
 fi
 
+# ── Python virtual environment ───────────────
+header "Setting Up Python Environment"
+
+VENV_DIR="$INSTALL_DIR/venv"
+if [[ -d "$VENV_DIR" ]]; then
+    ok "Virtual environment already exists"
+else
+    info "Creating virtual environment..."
+    python3 -m venv "$VENV_DIR"
+    ok "Virtual environment created at $VENV_DIR"
+fi
+
+# Use venv pip for all remaining installs
+VENV_PIP="$VENV_DIR/bin/pip"
+VENV_PYTHON="$VENV_DIR/bin/python3"
+
+info "Upgrading pip..."
+run_quiet "$VENV_PIP" install --upgrade pip
+
 # ── Python dependencies ──────────────────────
 header "Installing Python Dependencies"
 
 cd "$INSTALL_DIR"
-run_quiet pip3 install $PIP_EXTRA_FLAGS -r requirements.txt
+run_quiet "$VENV_PIP" install -r requirements.txt
 ok "Python packages installed"
 
 # ── Hand off to Python setup ─────────────────
@@ -280,4 +287,4 @@ echo ""
 trap - EXIT
 
 # Re-open stdin from terminal (stdin is consumed by curl pipe)
-python3 "$INSTALL_DIR/installer/setup.py" --install-dir "$INSTALL_DIR" < /dev/tty
+"$VENV_PYTHON" "$INSTALL_DIR/installer/setup.py" --install-dir "$INSTALL_DIR" < /dev/tty

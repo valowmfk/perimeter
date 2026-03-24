@@ -943,7 +943,7 @@ def screen_write_config(
         User={username}
         Group={username}
 
-        ExecStart=/usr/bin/python3 -u {install_dir}/qbranch_app.py
+        ExecStart={install_dir}/venv/bin/python3 -u {install_dir}/qbranch_app.py
         WorkingDirectory={install_dir}
 
         Environment=SOPS_AGE_KEY_FILE={age_key_path}
