@@ -28,13 +28,11 @@ for _p in _extra_paths:
     if _p not in os.environ.get("PATH", ""):
         os.environ["PATH"] = f"{_p}:{os.environ.get('PATH', '')}"
 
-# Always reopen stdin from /dev/tty — this script is interactive and may be
-# called from curl|bash or sudo where stdin is not the user's terminal.
+# Try to reopen stdin from /dev/tty (may be broken by curl|bash or sudo).
 try:
     sys.stdin = open("/dev/tty", "r")
 except OSError:
-    print("Error: Cannot open /dev/tty — run this script from an interactive terminal.")
-    sys.exit(1)
+    pass
 
 # ── Colors ────────────────────────────────────────────────
 CYAN = "\033[0;36m"
@@ -42,6 +40,27 @@ GREEN = "\033[0;32m"
 RED = "\033[0;31m"
 YELLOW = "\033[1;33m"
 BOLD = "\033[1m"
+NC_EARLY = "\033[0m"  # needed before NC is defined below
+
+
+def _tty_input(prompt_text: str) -> str:
+    """Wrapper around input() that catches terminal I/O errors."""
+    try:
+        return builtins._original_input(prompt_text)
+    except (EOFError, OSError):
+        install_dir = "/opt/perimeter"
+        for i, arg in enumerate(sys.argv):
+            if arg == "--install-dir" and i + 1 < len(sys.argv):
+                install_dir = sys.argv[i + 1]
+        print(f"\n\n  {BOLD}Bootstrap complete!{NC_EARLY} Interactive setup needs a terminal.")
+        print(f"  Run this command to finish setup:\n")
+        print(f"    sudo {install_dir}/venv/bin/python3 {install_dir}/installer/setup.py --install-dir {install_dir}\n")
+        sys.exit(0)
+
+
+import builtins
+builtins._original_input = builtins.input
+builtins.input = _tty_input
 DIM = "\033[2m"
 NC = "\033[0m"
 
