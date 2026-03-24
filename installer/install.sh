@@ -136,6 +136,11 @@ if [[ "$OS_FAMILY" == "rhel" ]]; then
     run_quiet dnf install -y python3 python3-pip python3-devel git curl unzip jq openssh-clients
     ok "System packages installed (dnf)"
 else
+    # Remove any broken third-party repos (e.g. HashiCorp with unsupported codename)
+    if [[ -f /etc/apt/sources.list.d/hashicorp.list ]]; then
+        rm -f /etc/apt/sources.list.d/hashicorp.list
+        info "Removed stale HashiCorp apt repo (will re-add with correct codename)"
+    fi
     info "Updating apt package index..."
     run_quiet apt-get update -qq
     info "Installing packages via apt..."
@@ -157,23 +162,22 @@ else
         run_quiet yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
         run_quiet dnf install -y terraform
     else
-        # Get codename — fall back to VERSION_CODENAME from os-release if lsb_release fails
+        # Get codename from os-release, fall back to lsb_release
         CODENAME="${OS_CODENAME}"
         if [[ -z "$CODENAME" ]] && command -v lsb_release &>/dev/null; then
             CODENAME="$(lsb_release -cs)"
         fi
-        # If codename is still empty, fall back to latest Ubuntu LTS
         if [[ -z "$CODENAME" ]]; then
-            warn "Could not determine OS codename — using 'noble' (Ubuntu 24.04 LTS)"
             CODENAME="noble"
         fi
 
         curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg 2>/dev/null
+
+        # Try the detected codename first, fall back to noble (latest LTS) if HashiCorp doesn't support it
         echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com ${CODENAME} main" \
             > /etc/apt/sources.list.d/hashicorp.list
-        # If apt update fails (codename not in repo), try noble fallback
         if ! apt-get update -qq >> "$INSTALLER_LOG" 2>&1; then
-            warn "HashiCorp repo may not support '${CODENAME}' yet — trying 'noble' fallback"
+            warn "HashiCorp repo doesn't support '${CODENAME}' — using 'noble' (Ubuntu 24.04 LTS)"
             CODENAME="noble"
             echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com ${CODENAME} main" \
                 > /etc/apt/sources.list.d/hashicorp.list
