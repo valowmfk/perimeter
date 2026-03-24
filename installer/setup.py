@@ -28,6 +28,14 @@ for _p in _extra_paths:
     if _p not in os.environ.get("PATH", ""):
         os.environ["PATH"] = f"{_p}:{os.environ.get('PATH', '')}"
 
+# Reopen stdin from /dev/tty if piped (curl | sudo bash consumes stdin)
+if not sys.stdin.isatty():
+    try:
+        sys.stdin = open("/dev/tty", "r")
+    except OSError:
+        print("Error: Cannot open /dev/tty — run this script from an interactive terminal.")
+        sys.exit(1)
+
 # ── Colors ────────────────────────────────────────────────
 CYAN = "\033[0;36m"
 GREEN = "\033[0;32m"
