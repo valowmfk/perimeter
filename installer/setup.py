@@ -789,17 +789,17 @@ def screen_write_config(
 
     # Write plaintext to temp, encrypt with SOPS, delete plaintext
     enc_env_path = install_path / "secrets" / "automation-demo.enc.env"
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False, dir=str(install_path / "secrets")) as tmp:
-        tmp.write("\n".join(env_lines) + "\n")
-        tmp_path = tmp.name
+    plain_path = install_path / "secrets" / "automation-demo.plain.env"
+    plain_path.write_text("\n".join(env_lines) + "\n")
 
     try:
+        # Encrypt from plaintext file to enc.env (--output avoids -i path_regex issues)
         run_cmd(["sops", "--disable-version-check",
                  "--age", age_public_key,
                  "-e", "--input-type", "dotenv", "--output-type", "dotenv",
-                 "-i", tmp_path], check=True,
+                 "--output", str(enc_env_path),
+                 str(plain_path)], check=True,
                 env={**os.environ, "SOPS_AGE_KEY_FILE": str(age_key_path)})
-        shutil.move(tmp_path, str(enc_env_path))
         enc_env_path.chmod(0o600)
         os.chown(str(enc_env_path), uid, gid)
         ok("Secrets encrypted: secrets/automation-demo.enc.env")
@@ -808,8 +808,12 @@ def screen_write_config(
         stdout_msg = e.stdout.strip() if e.stdout else "no stdout"
         fail(f"SOPS encryption failed: {stderr_msg or stdout_msg}")
         # Keep plaintext as fallback
-        shutil.move(tmp_path, str(enc_env_path))
+        shutil.move(str(plain_path), str(enc_env_path))
         warn("Secrets saved as plaintext — encrypt manually with SOPS later")
+    finally:
+        # Always remove plaintext
+        if plain_path.exists():
+            plain_path.unlink()
 
     # ── Terraform credentials ──────────────────────
     tf_creds_content = textwrap.dedent(f"""\
