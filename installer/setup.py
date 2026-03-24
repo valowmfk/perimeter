@@ -449,20 +449,46 @@ def screen_proxmox() -> Dict[str, str]:
             except Exception:
                 ok("User perimeter@pve already exists")
 
-            # Create role with guest agent permissions
-            privs = ",".join([
+            # Create role with permissions needed for VM provisioning
+            # Try full privilege set first, fall back without GuestAgent privs (older Proxmox)
+            base_privs = [
                 "VM.Allocate", "VM.Clone", "VM.Config.CDROM", "VM.Config.CPU",
                 "VM.Config.Cloudinit", "VM.Config.Disk", "VM.Config.HWType",
                 "VM.Config.Memory", "VM.Config.Network", "VM.Config.Options",
                 "VM.Audit", "VM.Console", "VM.PowerMgmt",
-                "VM.GuestAgent.Audit", "VM.GuestAgent.Unrestricted",
                 "Datastore.AllocateSpace", "Datastore.Audit", "SDN.Use",
-            ])
-            try:
-                pve_request("POST", "/access/roles", f"roleid=PerimeterAdmin&privs={privs}")
-                ok("Role created: PerimeterAdmin")
-            except Exception:
-                ok("Role PerimeterAdmin already exists")
+            ]
+            guest_agent_privs = ["VM.GuestAgent.Audit", "VM.GuestAgent.Unrestricted"]
+
+            role_created = False
+            for privs_list in [base_privs + guest_agent_privs, base_privs]:
+                privs = ",".join(privs_list)
+                try:
+                    pve_request("POST", "/access/roles", f"roleid=PerimeterAdmin&privs={privs}")
+                    ok("Role created: PerimeterAdmin")
+                    role_created = True
+                    break
+                except urllib.error.HTTPError as e:
+                    err_body = e.read().decode() if hasattr(e, 'read') else str(e)
+                    if "already exists" in err_body:
+                        ok("Role PerimeterAdmin already exists")
+                        role_created = True
+                        break
+                    # If it failed with guest agent privs, try without
+                    if privs_list == base_privs + guest_agent_privs:
+                        warn("Retrying role creation without GuestAgent privileges...")
+                        continue
+                    raise
+                except Exception as e:
+                    err_msg = str(e)
+                    if "already exists" in err_msg:
+                        ok("Role PerimeterAdmin already exists")
+                        role_created = True
+                        break
+                    raise
+
+            if not role_created:
+                raise RuntimeError("Could not create PerimeterAdmin role")
 
             # Create API token
             resp = pve_request("POST", "/access/users/perimeter@pve/token/provider", "privsep=0")
