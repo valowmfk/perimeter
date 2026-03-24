@@ -260,7 +260,7 @@ def list_proxmox_templates():
     url = f"{PM_API_URL}/nodes/goldfinger/qemu"
     try:
         r = requests.get(url, headers=headers, verify=False)
-        data = r.json().get("data", [])
+        data = r.json().get("data") or []
     except Exception:
         return []
     templates = []
