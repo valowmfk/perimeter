@@ -173,7 +173,7 @@ def api_create_vm():
     cpu = data.get("cpu")
     ram = data.get("ram")
     disk = data.get("disk")
-    node = data.get("node", "goldfinger")
+    node = data.get("node", cfg.PM_NODE)
     vm_type = data.get("vm_type", "linux")
     acos_version = data.get("acos_version", "")
 
@@ -257,7 +257,7 @@ def api_vm_status(job_id):
 @vms_bp.route("/api/vm_health/<vmid>")
 def api_vm_health(vmid):
     try:
-        health = get_vm_health("goldfinger", int(vmid))
+        health = get_vm_health(cfg.PM_NODE, int(vmid))
         return jsonify(health)
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)})
@@ -297,7 +297,7 @@ def api_list_vms():
                 if rtype == "proxmox_vm_qemu":
                     for inst in res.get("instances", []):
                         attrs = inst.get("attributes", {})
-                        node = attrs.get("target_node", "goldfinger")
+                        node = attrs.get("target_node", cfg.PM_NODE)
                         vid = attrs.get("vmid")
                         health = get_vm_health(node, vid)
                         vms.append({
@@ -310,7 +310,7 @@ def api_list_vms():
                 elif rtype == "proxmox_virtual_environment_vm":
                     for inst in res.get("instances", []):
                         attrs = inst.get("attributes", {})
-                        node = attrs.get("node_name", "goldfinger")
+                        node = attrs.get("node_name", cfg.PM_NODE)
                         vid = attrs.get("vm_id") or attrs.get("id")
                         vm_name = attrs.get("name", "")
 

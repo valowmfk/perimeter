@@ -257,7 +257,7 @@ def list_proxmox_templates():
     headers = pm_headers()
     if not headers:
         return []
-    url = f"{PM_API_URL}/nodes/goldfinger/qemu"
+    url = f"{PM_API_URL}/nodes/{cfg.PM_NODE}/qemu"
     try:
         r = requests.get(url, headers=headers, verify=False)
         data = r.json().get("data") or []
@@ -275,8 +275,9 @@ def list_proxmox_templates():
     return sorted(templates, key=lambda t: t["name"])
 
 
-def get_node_bridges(node: str = "goldfinger"):
+def get_node_bridges(node: str = None):
     """Query Proxmox for vmbr* bridges on a node."""
+    node = node or cfg.PM_NODE
     headers = pm_headers()
     if not headers:
         return []

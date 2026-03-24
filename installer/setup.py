@@ -402,6 +402,26 @@ def screen_proxmox() -> Dict[str, str]:
     else:
         warn("Cannot verify Proxmox API (self-signed cert?) — continuing anyway")
 
+    # Auto-discover node name from API
+    pm_node = "pve"
+    try:
+        import urllib.request, ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        resp = urllib.request.urlopen(f"{base_url}/nodes", timeout=5, context=ctx)
+        import json as _json
+        nodes_data = _json.loads(resp.read()).get("data", [])
+        if nodes_data:
+            pm_node = nodes_data[0].get("node", "pve")
+            if len(nodes_data) > 1:
+                node_names = ", ".join(n.get("node", "?") for n in nodes_data)
+                info(f"Found {len(nodes_data)} nodes: {node_names}")
+            ok(f"Detected Proxmox node: {pm_node}")
+    except Exception:
+        pass
+    pm_node = prompt("Proxmox node name", pm_node)
+
     print()
     info("Perimeter needs an API token for Proxmox. We can create one automatically.")
     auto_create = prompt_yes_no("Auto-create API token using root credentials?")
@@ -519,6 +539,7 @@ def screen_proxmox() -> Dict[str, str]:
         "pm_api_url": pm_url,
         "pm_api_token_id": token_id,
         "pm_api_token_secret": token_secret,
+        "pm_node": pm_node,
     }
 
 
@@ -1006,6 +1027,7 @@ def screen_write_config(
         Environment=SOPS_AGE_KEY_FILE={age_key_path}
         Environment=QBRANCH_ROOT={install_dir}
         Environment=FLASK_PORT=8080
+        Environment=PM_NODE={proxmox['pm_node']}
         Environment=PERIMETER_DNS_DOMAIN={network['dns_domain']}
         Environment=PERIMETER_FEATURE_ANSIBLE={'1' if features.get('ansible') else '0'}
         Environment=PERIMETER_FEATURE_CERTS={'1' if features.get('certificates') else '0'}

@@ -16,6 +16,7 @@ def index():
         inventories=list_inventories(),
         templates=list_proxmox_templates(),
         features=cfg.FEATURES,
+        pm_node=cfg.PM_NODE,
     )
 
 
@@ -27,4 +28,5 @@ def create_vm_page():
         inventories=list_inventories(),
         templates=list_proxmox_templates(),
         features=cfg.FEATURES,
+        pm_node=cfg.PM_NODE,
     )
