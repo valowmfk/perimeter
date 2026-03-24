@@ -31,7 +31,7 @@ system_bp = Blueprint("system", __name__)
 
 @system_bp.route("/api/network_bridges")
 def api_network_bridges():
-    node = request.args.get("node", "goldfinger")
+    node = request.args.get("node", cfg.PM_NODE)
     bridges = get_node_bridges(node)
     return jsonify({"node": node, "bridges": bridges})
 
@@ -372,7 +372,7 @@ _refresh_processes = {}
 @system_bp.route("/api/proxmox/templates")
 def api_proxmox_templates():
     """List all templates with metadata for the Proxmox flyout."""
-    node = request.args.get("node", "goldfinger")
+    node = request.args.get("node", cfg.PM_NODE)
     headers = pm_headers()
     if not headers:
         return api_error("Proxmox API not configured")
@@ -417,7 +417,7 @@ def api_template_refresh():
     """Start a template refresh. Returns a session_id for SSE streaming."""
     data = request.json or {}
     template_name = data.get("template_name", "").strip()
-    node = data.get("node", "goldfinger").strip()
+    node = data.get("node", cfg.PM_NODE).strip()
 
     if not template_name:
         return api_error("template_name is required")
@@ -493,7 +493,7 @@ def api_template_refresh_stream(session_id):
 @system_bp.route("/api/proxmox/node-status")
 def api_proxmox_node_status():
     """Get node-level status for the Proxmox flyout."""
-    node = request.args.get("node", "goldfinger")
+    node = request.args.get("node", cfg.PM_NODE)
     headers = pm_headers()
     if not headers:
         return api_error("Proxmox API not configured")

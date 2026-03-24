@@ -48,7 +48,7 @@ function formatBytes(bytes) {
 
 function loadNodeStatus() {
     const el = document.getElementById('proxmoxNodeStatus');
-    fetch('/api/proxmox/node-status?node=goldfinger')
+    fetch(`/api/proxmox/node-status?node=${window.PERIMETER_CONFIG?.pmNode || 'pve'}`)
         .then(r => r.json())
         .then(data => {
             if (data.error) { el.textContent = data.error; return; }
@@ -71,7 +71,7 @@ export function loadTemplates() {
     if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#64748b;">Loading...</td></tr>';
 
-    fetch('/api/proxmox/templates?node=goldfinger')
+    fetch(`/api/proxmox/templates?node=${window.PERIMETER_CONFIG?.pmNode || 'pve'}`)
         .then(r => r.json())
         .then(data => {
             if (data.error) { tbody.innerHTML = `<tr><td colspan="5">${data.error}</td></tr>`; return; }
@@ -118,7 +118,7 @@ export function refreshTemplate(templateName) {
     fetch('/api/template/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template_name: templateName, node: 'goldfinger' })
+        body: JSON.stringify({ template_name: templateName, node: window.PERIMETER_CONFIG?.pmNode || 'pve' })
     }).then(r => r.json()).then(data => {
         if (data.error) {
             showToast(data.error);

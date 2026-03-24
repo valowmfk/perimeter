@@ -17,7 +17,7 @@ let availableBridges = ["vmbr0"];
 
 export function loadBridges() {
     const nodeSel = document.getElementById("node");
-    const node = nodeSel ? nodeSel.value : "goldfinger";
+    const node = nodeSel ? nodeSel.value : (window.PERIMETER_CONFIG?.pmNode || "pve");
 
     fetch(`/api/network_bridges?node=${encodeURIComponent(node)}`)
         .then(r => r.json())

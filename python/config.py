@@ -66,6 +66,9 @@ class Config:
     PM_API_TOKEN_SECRET: str = field(
         default_factory=lambda: os.getenv("PM_API_TOKEN_SECRET", "")
     )
+    PM_NODE: str = field(
+        default_factory=lambda: os.getenv("PM_NODE", "pve")
+    )
 
     # ── Netbox ──────────────────────────────────────────────────
     NETBOX_URL: str = field(
