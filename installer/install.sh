@@ -212,7 +212,11 @@ if command -v ansible-playbook &> /dev/null; then
     ok "Ansible already installed: $(ansible --version | head -1)"
 else
     info "Installing Ansible via pip..."
-    run_quiet pip3 install --break-system-packages ansible
+    if [[ "$OS_FAMILY" == "debian" ]]; then
+        run_quiet pip3 install --break-system-packages ansible
+    else
+        run_quiet pip3 install ansible
+    fi
     export PATH="/usr/local/bin:$HOME/.local/bin:$PATH"
     ok "Ansible installed: $(ansible --version 2>/dev/null | head -1 || echo 'installed')"
 fi
