@@ -785,7 +785,11 @@ def phase15_and_2_static_bootstrap(
     else:
         from config import subnet_for_ip
         subnet_info = subnet_for_ip(static_ip) if static_ip else None
-        gateway = subnet_info["gateway"] if subnet_info else "10.1.55.254"
+        gateway = subnet_info["gateway"] if subnet_info else None
+
+    if not gateway:
+        qlog_error(COMPONENT, "No gateway found — set PERIMETER_SUBNETS or pass gateway in bootstrap env")
+        return 1
 
     if static_ip and gateway:
         _configure_mgmt_interface(

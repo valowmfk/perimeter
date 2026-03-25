@@ -27,14 +27,15 @@
     # Derived from domain
     cert_name: "{{ domain | replace('.', '_') | replace('*', 'wildcard') }}"
     base_domain: "{{ domain.split('.')[-2:] | join('.') }}"
-    cert_source_dir: "/home/mklouda/automation-demo/certificates/{{ base_domain }}/live/{{ domain }}"
+    perimeter_root: "{{ lookup('env', 'PERIMETER_ROOT') | default('/opt/perimeter', true) }}"
+    cert_source_dir: "{{ perimeter_root }}/certificates/{{ base_domain }}/live/{{ domain }}"
 
     # Cert file — fullchain includes intermediates for proper chain validation
     cert_file: "fullchain.pem"
 
     # vThunder connection
     vthunder_username: "admin"
-    vthunder_password: "{{ lookup('pipe', '/home/mklouda/automation-demo/scripts/get-secret.sh VTH_ADMIN_PASS') }}"
+    vthunder_password: "{{ lookup('pipe', perimeter_root ~ '/scripts/get-secret.sh VTH_ADMIN_PASS') }}"
     vthunder_port: 443
 
   pre_tasks:
@@ -49,7 +50,7 @@
   tasks:
     - name: Upload certificate and key to vThunder
       command: >
-        python3 /home/mklouda/automation-demo/python/helpers/upload_cert_to_vthunder.py
+        python3 {{ perimeter_root }}/python/helpers/upload_cert_to_vthunder.py
         --host "{{ vthunder_host }}"
         --port "{{ vthunder_port }}"
         --username "{{ vthunder_username }}"

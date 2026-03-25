@@ -1,0 +1,41 @@
+[Unit]
+Description=Perimeter Celery Worker
+After=redis.service network-online.target
+Wants=redis.service
+
+[Service]
+Type=simple
+User={{ service_user }}
+Group={{ service_user }}
+
+ExecStart=/usr/local/bin/celery -A celery_app worker --loglevel=info --concurrency=4
+WorkingDirectory={{ install_dir }}/python
+
+# SOPS decryption needs the Age private key
+Environment=SOPS_AGE_KEY_FILE={{ age_key_path }}
+Environment=PERIMETER_ROOT={{ install_dir }}
+
+# Complex env vars (JSON, CSV) via EnvironmentFile
+EnvironmentFile={{ env_file_path }}
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=perimeter-worker
+
+# Graceful shutdown — allow running tasks to finish
+KillSignal=SIGTERM
+TimeoutStopSec=300
+
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths={{ install_dir }}
+ReadWritePaths={{ home_dir }}/.ssh
+
+[Install]
+WantedBy=multi-user.target

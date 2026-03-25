@@ -7,10 +7,10 @@ from pathlib import Path
 import pytest
 
 from workflows.destroy_vm import (
-    find_vm_by_id,
     remove_ssh_host_keys,
     destroy_vm,
 )
+from utils.vm_types import find_vm_in_tfvars
 
 
 @pytest.fixture
@@ -51,34 +51,36 @@ def empty_tfvars(tmp_path):
 
 
 # ──────────────────────────────
-# find_vm_by_id
+# find_vm_in_tfvars
 # ──────────────────────────────
 
-class TestFindVmById:
+class TestFindVmInTfvars:
+    def _mock_registry(self, monkeypatch, linux_path, vthunder_path, vyos_path=None):
+        """Patch the VM type registry to use test-specific tfvars paths."""
+        from utils.vm_types import VMTypeInfo
+        fake_registry = [
+            VMTypeInfo("linux", "vm_configs", "linux_vm", linux_path, linux_path.parent),
+            VMTypeInfo("vthunder", "vthunder_configs", "vthunder_vm", vthunder_path, vthunder_path.parent),
+        ]
+        if vyos_path:
+            fake_registry.append(VMTypeInfo("vyos", "vyos_configs", "vyos_vm", vyos_path, vyos_path.parent))
+        monkeypatch.setattr("utils.vm_types.all_vm_types", lambda: fake_registry)
+
     def test_find_linux(self, linux_tfvars, vthunder_tfvars, monkeypatch):
-        monkeypatch.setattr("workflows.destroy_vm.TFVARS_LINUX_PATH", linux_tfvars)
-        monkeypatch.setattr("workflows.destroy_vm.TFVARS_VTHUNDER_PATH", vthunder_tfvars)
-        vm_type, key, ip = find_vm_by_id(8001)
-        assert vm_type == "linux"
-        assert key == "web-01"
-        assert ip == "10.1.55.50"
+        self._mock_registry(monkeypatch, linux_tfvars, vthunder_tfvars)
+        result = find_vm_in_tfvars(8001)
+        assert result == ("linux", "web-01", "10.1.55.50")
 
     def test_find_vthunder(self, linux_tfvars, vthunder_tfvars, monkeypatch):
-        monkeypatch.setattr("workflows.destroy_vm.TFVARS_LINUX_PATH", linux_tfvars)
-        monkeypatch.setattr("workflows.destroy_vm.TFVARS_VTHUNDER_PATH", vthunder_tfvars)
-        vm_type, key, ip = find_vm_by_id(9001)
-        assert vm_type == "vthunder"
-        assert key == "vth-01"
-        assert ip == "10.1.55.60"
+        self._mock_registry(monkeypatch, linux_tfvars, vthunder_tfvars)
+        result = find_vm_in_tfvars(9001)
+        assert result == ("vthunder", "vth-01", "10.1.55.60")
 
     def test_not_found(self, empty_tfvars, monkeypatch):
         linux, vthunder = empty_tfvars
-        monkeypatch.setattr("workflows.destroy_vm.TFVARS_LINUX_PATH", linux)
-        monkeypatch.setattr("workflows.destroy_vm.TFVARS_VTHUNDER_PATH", vthunder)
-        vm_type, key, ip = find_vm_by_id(9999)
-        assert vm_type is None
-        assert key is None
-        assert ip is None
+        self._mock_registry(monkeypatch, linux, vthunder)
+        result = find_vm_in_tfvars(9999)
+        assert result is None
 
     def test_ip_without_cidr(self, tmp_path, monkeypatch):
         data = {"vm_configs": {"host": {"vm_id": 100, "ipv4_address": "10.1.55.5"}}}
@@ -86,10 +88,9 @@ class TestFindVmById:
         linux.write_text(json.dumps(data))
         vthunder = tmp_path / "vthunder.json"
         vthunder.write_text(json.dumps({"vthunder_configs": {}}))
-        monkeypatch.setattr("workflows.destroy_vm.TFVARS_LINUX_PATH", linux)
-        monkeypatch.setattr("workflows.destroy_vm.TFVARS_VTHUNDER_PATH", vthunder)
-        _, _, ip = find_vm_by_id(100)
-        assert ip == "10.1.55.5"
+        self._mock_registry(monkeypatch, linux, vthunder)
+        result = find_vm_in_tfvars(100)
+        assert result[2] == "10.1.55.5"
 
 
 # ──────────────────────────────
@@ -143,7 +144,7 @@ class TestDestroyVm:
         assert destroy_vm(9001) == 0
         mock_inv_yaml.assert_called_once_with("vth-01")
 
-    @patch("workflows.destroy_vm.find_vm_by_id", return_value=(None, None, None))
+    @patch("workflows.destroy_vm.find_vm_by_id", return_value=None)
     def test_destroy_not_found(self, mock_find):
         assert destroy_vm(9999) == 1
 

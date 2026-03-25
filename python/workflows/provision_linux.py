@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
@@ -29,8 +28,9 @@ from utils.inventory_yaml import add_host_to_group
 from axapi.utils import qlog, qlog_success, qlog_warning, qlog_error
 from utils.qlog import init_correlation_id_from_env
 from utils.sops_env import load_env
-from utils.tfvars_io import locked_update
+from utils.tfvars_io import merge_vm_config
 from utils.terraform_runner import terraform_init, terraform_apply
+from utils.parse_args import parse_bridges_arg
 
 COMPONENT = "LINUX-PROV"
 
@@ -48,15 +48,6 @@ DEFAULT_DATASTORE = "zfs-pool"
 # ─────────────────────────────
 
 from utils.network import normalize_ip_cidr
-
-
-def add_vm_to_tfvars(hostname: str, vm_config: Dict[str, Any]) -> None:
-    """Add a VM config to tfvars with file locking and atomic write."""
-    def updater(data: Dict[str, Any]) -> None:
-        data.setdefault("vm_configs", {})[hostname] = vm_config
-
-    locked_update(TFVARS_PATH, updater)
-    qlog(COMPONENT, f"Saved tfvars to {TFVARS_PATH}")
 
 
 def run_terraform(hostname: str, vmid: int) -> int:
@@ -120,12 +111,16 @@ def provision_linux_vm(
     # Subnet-aware gateway/DNS lookup
     from config import subnet_for_ip
     subnet_info = subnet_for_ip(ip)
-    gateway = env.get("LINUX_GATEWAY") or (subnet_info["gateway"] if subnet_info else "10.1.55.254")
+    gateway = env.get("LINUX_GATEWAY") or (subnet_info["gateway"] if subnet_info else None)
     dns_env = env.get("LINUX_DNS_SERVERS", "")
     if dns_env:
         dns_servers = [s.strip() for s in dns_env.split(",")]
     else:
-        dns_servers = subnet_info["dns"] if subnet_info else ["10.1.55.10", "10.1.55.11"]
+        dns_servers = subnet_info["dns"] if subnet_info else None
+
+    if not gateway or not dns_servers:
+        qlog_error(COMPONENT, "No subnet config found for IP — set PERIMETER_SUBNETS or LINUX_GATEWAY/LINUX_DNS_SERVERS")
+        return 1
     datastore = env.get("LINUX_DATASTORE", DEFAULT_DATASTORE)
 
     if not ssh_keys:
@@ -160,8 +155,7 @@ def provision_linux_vm(
         "tags": ["lab"],
     }
 
-    add_vm_to_tfvars(hostname, vm_config)
-
+    merge_vm_config(hostname, vm_config, TFVARS_PATH, section="vm_configs")
     qlog_success(COMPONENT, f"VM config for {hostname} merged into tfvars")
 
     rc = run_terraform(hostname, vmid)
@@ -224,13 +218,7 @@ def main() -> int:
     vm_type = sys.argv[10]
     bridges_arg = sys.argv[12]
 
-    # Parse bridges - accepts JSON array or single bridge string for backwards compat
-    try:
-        bridges = json.loads(bridges_arg)
-        if isinstance(bridges, str):
-            bridges = [bridges]
-    except json.JSONDecodeError:
-        bridges = [bridges_arg]
+    bridges = parse_bridges_arg(bridges_arg)
 
     if vm_type != "linux":
         qlog_error(COMPONENT, f"provision_linux.py called with vm_type={vm_type} (expected linux)")

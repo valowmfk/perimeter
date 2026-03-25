@@ -3,13 +3,23 @@
 # Usage: ansible-playbook -i inventories/inventory.yml playbooks/deploy-cert-linux.yml -l <host_or_group>
 # IMPORTANT: Always use -l to limit scope — do not run against all hosts
 
-- name: Deploy SSL Certificate - klouda.work
+- name: Deploy SSL Certificate
   hosts: all  # Use -l flag to limit to specific hosts or groups
   become: yes
   vars:
-    cert_source_path: "/home/mklouda/automation-demo/certificates/klouda.work"
+    # Required — pass via -e: domain=example.com
+    domain: ""
+    perimeter_root: "{{ lookup('env', 'PERIMETER_ROOT') | default('/opt/perimeter', true) }}"
+    cert_source_path: "{{ perimeter_root }}/certificates/{{ domain }}"
     cert_dest_path: "/etc/ssl/certs"
     key_dest_path: "/etc/ssl/private"
+
+  pre_tasks:
+    - name: Validate required variables
+      assert:
+        that:
+          - domain | length > 0
+        fail_msg: "Required: -e domain=example.com"
 
   tasks:
     - name: Ensure SSL directories exist
@@ -24,7 +34,7 @@
     - name: Copy fullchain certificate
       copy:
         src: "{{ cert_source_path }}/fullchain.pem"
-        dest: "{{ cert_dest_path }}/klouda.work-fullchain.pem"
+        dest: "{{ cert_dest_path }}/{{ domain }}-fullchain.pem"
         mode: '0644'
         owner: root
         group: root
@@ -33,7 +43,7 @@
     - name: Copy private key
       copy:
         src: "{{ cert_source_path }}/privkey.pem"
-        dest: "{{ key_dest_path }}/klouda.work-privkey.pem"
+        dest: "{{ key_dest_path }}/{{ domain }}-privkey.pem"
         mode: '0600'
         owner: root
         group: root

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
@@ -29,8 +28,9 @@ from utils.inventory_yaml import add_host_to_group
 from axapi.utils import qlog, qlog_success, qlog_warning, qlog_error
 from utils.qlog import init_correlation_id_from_env
 from utils.sops_env import load_env
-from utils.tfvars_io import locked_update
+from utils.tfvars_io import merge_vm_config
 from utils.terraform_runner import terraform_init, terraform_apply, terraform_output_json
+from utils.parse_args import parse_bridges_arg
 from workflows.dhcp_scanner import discover_dhcp_ip
 
 COMPONENT = "VTH-PROV"
@@ -41,9 +41,9 @@ TFVARS_PATH = TF_DIR / "perimeter-vthunder.auto.tfvars.json"
 DEFAULT_ENV_FILE = str(ROOT_DIR / "secrets" / "perimeter.enc.env")
 
 DEFAULT_DATASTORE = "zfs-pool"
-DEFAULT_DHCP_PREFIX = "10.1.55"
-DEFAULT_DHCP_START = 175
-DEFAULT_DHCP_END = 245
+DEFAULT_DHCP_PREFIX = ""
+DEFAULT_DHCP_START = 100
+DEFAULT_DHCP_END = 254
 
 ACOS_DEFAULT_CPU = 4
 ACOS_DEFAULT_RAM = 8192
@@ -54,23 +54,6 @@ VTH_SSH_USER = "admin"
 # ─────────────────────────────
 # Env + tfvars helpers
 # ─────────────────────────────
-
-
-def merge_vthunder_config(
-    hostname: str,
-    vth_cfg: Dict[str, Any],
-    tfvars_path: Path = TFVARS_PATH,
-) -> None:
-    """Add a vThunder config to tfvars with file locking and atomic write."""
-    def updater(data: Dict[str, Any]) -> None:
-        data.setdefault("vthunder_configs", {})[hostname] = vth_cfg
-
-    locked_update(tfvars_path, updater)
-
-    qlog_success(
-        COMPONENT,
-        f"Merged vThunder definition for {hostname} into {tfvars_path}.",
-    )
 
 
 # ─────────────────────────────
@@ -182,8 +165,12 @@ def run_provision_vthunder(
     # Subnet-aware gateway/DNS lookup
     from config import subnet_for_ip
     subnet_info = subnet_for_ip(ip_raw)
-    default_gateway = env.get("VTH_MGMT_GATEWAY") or (subnet_info["gateway"] if subnet_info else "10.1.55.254")
-    default_dns = env.get("VTH_DNS_SERVER") or (subnet_info["dns"][0] if subnet_info else "10.1.55.10")
+    default_gateway = env.get("VTH_MGMT_GATEWAY") or (subnet_info["gateway"] if subnet_info else None)
+    default_dns = env.get("VTH_DNS_SERVER") or (subnet_info["dns"][0] if subnet_info else None)
+
+    if not default_gateway or not default_dns:
+        qlog_error(COMPONENT, "No subnet config found for IP — set PERIMETER_SUBNETS or VTH_MGMT_GATEWAY/VTH_DNS_SERVER")
+        return 1
 
     vth_cfg: Dict[str, Any] = {
         "vm_id": vmid,
@@ -204,7 +191,8 @@ def run_provision_vthunder(
         "tags": ["lab", "vthunder"],
     }
 
-    merge_vthunder_config(hostname, vth_cfg, TFVARS_PATH)
+    merge_vm_config(hostname, vth_cfg, TFVARS_PATH, section="vthunder_configs")
+    qlog_success(COMPONENT, f"Merged vThunder definition for {hostname} into {TFVARS_PATH}.")
 
     if terraform_init(TF_DIR, COMPONENT) != 0:
         return 1
@@ -216,7 +204,14 @@ def run_provision_vthunder(
     if not mgmt_mac:
         return 1
 
+    # Derive DHCP scan prefix from subnet config or env override
     dhcp_prefix = env.get("VTH_DHCP_PREFIX", DEFAULT_DHCP_PREFIX)
+    if not dhcp_prefix and subnet_info:
+        # Derive from subnet: "10.1.55.0/24" → "10.1.55"
+        dhcp_prefix = subnet_info["network"].rsplit(".", 1)[0].split("/")[0]
+    if not dhcp_prefix:
+        qlog_error(COMPONENT, "Cannot determine DHCP scan prefix — set VTH_DHCP_PREFIX or PERIMETER_SUBNETS")
+        return 1
     dhcp_start = int(env.get("VTH_DHCP_START", str(DEFAULT_DHCP_START)))
     dhcp_end = int(env.get("VTH_DHCP_END", str(DEFAULT_DHCP_END)))
 
@@ -329,13 +324,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     acos_version_in = argv[10]
     bridges_arg = argv[11]
 
-    # Parse bridges - accepts JSON array or single bridge string for backwards compat
-    try:
-        bridges = json.loads(bridges_arg)
-        if isinstance(bridges, str):
-            bridges = [bridges]
-    except json.JSONDecodeError:
-        bridges = [bridges_arg]
+    bridges = parse_bridges_arg(bridges_arg)
 
     return run_provision_vthunder(
         hostname=hostname,

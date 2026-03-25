@@ -9,6 +9,25 @@ export function getConfig(key, fallback = '') {
     return window.PERIMETER_CONFIG?.[key] || fallback;
 }
 
+/**
+ * Toggle a flyout/panel element between display:none and display:block.
+ * Handles chevron update and optional aria-expanded + onOpen callback.
+ */
+export function togglePanel(elementId, { chevronId, toggleSelector, onOpen, chevronOpen = '\u25b4', chevronClosed = '\u25be' } = {}) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    const isOpening = el.style.display === 'none';
+    el.style.display = isOpening ? 'block' : 'none';
+
+    const chevron = chevronId ? document.getElementById(chevronId) : null;
+    if (chevron) chevron.textContent = isOpening ? chevronOpen : chevronClosed;
+
+    const toggle = toggleSelector ? document.querySelector(toggleSelector) : null;
+    if (toggle) toggle.setAttribute('aria-expanded', isOpening ? 'true' : 'false');
+
+    if (isOpening && onOpen) onOpen();
+}
+
 export function escapeHtml(str) {
     if (str == null) return '';
     return String(str)

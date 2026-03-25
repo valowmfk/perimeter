@@ -115,6 +115,9 @@
          if ansible_facts.os_family == 'RedHat'
          else 'chrony' }}
 
+    # NTP server — override with -e bootstrap_ntp_server=<ip>
+    ntp_server: "{{ bootstrap_ntp_server | default('pool.ntp.org') }}"
+
   tasks:
 
     - name: Install chrony
@@ -126,7 +129,7 @@
       lineinfile:
         path: "{{ chrony_conf_path }}"
         regexp: '^server '
-        line: "server 10.1.55.9 iburst"
+        line: "server {{ ntp_server }} iburst"
         backup: yes
 
     - name: Restart chrony service
@@ -272,7 +275,7 @@
   hosts: all
   become: yes
   vars:
-    user: "mklouda"
+    user: "{{ bootstrap_user | default(ansible_user | default('perimeter')) }}"
 
   tasks:
 
@@ -296,7 +299,7 @@
   hosts: all
   become: yes
   vars:
-    user: "mklouda"
+    user: "{{ bootstrap_user | default(ansible_user | default('perimeter')) }}"
 
   tasks:
 
@@ -326,7 +329,7 @@
   hosts: all
   become: yes
   vars:
-    user: "mklouda"
+    user: "{{ bootstrap_user | default(ansible_user | default('perimeter')) }}"
     dotdir: "/home/{{ user }}/dotfiles"
 
   tasks:
@@ -368,6 +371,8 @@
   hosts: all
   become: yes
   gather_facts: yes
+  vars:
+    lab_name: "{{ homelab_name | default(lookup('env', 'PERIMETER_HOMELAB_NAME') | default('Perimeter Lab', true)) }}"
 
   tasks:
 
@@ -378,16 +383,13 @@
         mode: "0644"
         content: |
           ************************************************************
-                    Q BRANCH — EXPERIMENTAL SYSTEMS DIVISION
-                         Authorized Personnel Only
+                    {{ lab_name | upper }}
+                    Managed by Perimeter Automation Platform
 
           Hostname: {{ inventory_hostname }}
           OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
 
-          Debian-Class System Detected  
-          Apt subsystem online.  
-          Agents: calm, efficient, deadly.
-
+          Debian-class system — apt subsystem online.
           ************************************************************
       when: ansible_facts['os_family'] == "Debian"
 
@@ -398,35 +400,28 @@
         mode: "0644"
         content: |
           ************************************************************
-                    Q BRANCH — EXPERIMENTAL SYSTEMS DIVISION
-                         Authorized Personnel Only
+                    {{ lab_name | upper }}
+                    Managed by Perimeter Automation Platform
 
           Hostname: {{ inventory_hostname }}
           OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
 
-          RHEL-Class System Detected  
-          DNF subsystem active.  
-          Tactical-grade stability engaged.
-
+          RHEL-class system — dnf subsystem active.
           ************************************************************
       when: ansible_facts['os_family'] == "RedHat"
 
-    # ---------------- Fallback (should rarely be hit) ----------------
+    # ---------------- Fallback ----------------
     - name: Install MOTD – Unknown OS
       copy:
         dest: /etc/motd
         mode: "0644"
         content: |
           ************************************************************
-                    Q BRANCH — EXPERIMENTAL SYSTEMS DIVISION
-                         CAUTION: UNKNOWN PLATFORM
+                    {{ lab_name | upper }}
+                    Managed by Perimeter Automation Platform
 
           Hostname: {{ inventory_hostname }}
           OS Family: {{ ansible_facts['os_family'] }}
-
-          This system does not match any known classification.  
-          Proceed with heightened awareness.
-
           ************************************************************
       when: ansible_facts['os_family'] not in ["RedHat", "Debian"]
 
@@ -437,7 +432,7 @@
   hosts: all
   become: yes
   vars:
-    user: "mklouda"
+    user: "{{ bootstrap_user | default(ansible_user | default('perimeter')) }}"
 
   tasks:
 
@@ -458,17 +453,19 @@
 - name: Copy oh-my-posh system-wide
   hosts: all
   become: yes
+  vars:
+    user: "{{ bootstrap_user | default(ansible_user | default('perimeter')) }}"
 
   tasks:
 
     - name: Check if user-level oh-my-posh exists
       stat:
-        path: "/home/mklouda/.local/bin/oh-my-posh"
+        path: "/home/{{ user }}/.local/bin/oh-my-posh"
       register: omp_bin
 
     - name: Copy oh-my-posh to /usr/local/bin
       copy:
-        src: "/home/mklouda/.local/bin/oh-my-posh"
+        src: "/home/{{ user }}/.local/bin/oh-my-posh"
         dest: "/usr/local/bin/oh-my-posh"
         mode: "0755"
       when: omp_bin.stat.exists

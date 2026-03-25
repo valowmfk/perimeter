@@ -1,68 +1,7 @@
 // vThunder SLB Manager — VIP creation, management, and teardown
 
 import { showToast, appendLogLine } from '../utils/dom.js';
-
-// ── Shared cascade helpers ──────────────────────────────────
-
-function loadGroupsInto(selectId) {
-    const el = document.getElementById(selectId);
-    if (!el) return;
-    el.innerHTML = '<option value="">-- Select Group --</option>';
-    fetch('/inventory/groups?file=inventory.yml')
-        .then(r => r.json())
-        .then(groups => {
-            groups.filter(g => g.toLowerCase().includes('vthunder')).forEach(g => {
-                const opt = document.createElement('option');
-                opt.value = g;
-                opt.textContent = g;
-                el.appendChild(opt);
-            });
-        });
-}
-
-function loadHostsInto(groupSelectId, hostSelectId, partitionSelectId) {
-    const group = document.getElementById(groupSelectId)?.value;
-    const hostEl = document.getElementById(hostSelectId);
-    const partEl = document.getElementById(partitionSelectId);
-    if (hostEl) hostEl.innerHTML = '<option value="">-- Select Host --</option>';
-    if (partEl) partEl.innerHTML = '<option value="">-- Select Partition --</option>';
-    if (!group) return;
-    fetch('/api/vthunder/hosts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inventory_file: 'inventory.yml', group_name: group })
-    }).then(r => r.json()).then(data => {
-        if (data.error) { showToast(data.error); return; }
-        data.hosts.forEach(h => {
-            const opt = document.createElement('option');
-            opt.value = h;
-            opt.textContent = h;
-            hostEl.appendChild(opt);
-        });
-    });
-}
-
-function loadPartitionsInto(groupSelectId, hostSelectId, partitionSelectId) {
-    const group = document.getElementById(groupSelectId)?.value;
-    const host = document.getElementById(hostSelectId)?.value;
-    const partEl = document.getElementById(partitionSelectId);
-    if (!partEl) return;
-    partEl.innerHTML = '<option value="">-- Select Partition --</option>';
-    if (!group || !host) return;
-    fetch('/api/vthunder/partitions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inventory_file: 'inventory.yml', group_name: group, host })
-    }).then(r => r.json()).then(data => {
-        if (data.error) { showToast(data.error); return; }
-        data.partitions.forEach(p => {
-            const opt = document.createElement('option');
-            opt.value = p['partition-name'];
-            opt.textContent = `${p['partition-name']} (ID: ${p.id})`;
-            partEl.appendChild(opt);
-        });
-    });
-}
+import { loadVthunderGroups, loadVthunderHosts, loadVthunderPartitions } from '../utils/cascade.js';
 
 // ── VIP Manager drawer ──────────────────────────────────
 
@@ -71,9 +10,9 @@ export function initVipManager() {
     const hostEl = document.getElementById('vipMgrHost');
     const partEl = document.getElementById('vipMgrPartition');
     if (!groupEl) return;
-    groupEl.addEventListener('change', () => loadHostsInto('vipMgrGroup', 'vipMgrHost', 'vipMgrPartition'));
-    hostEl.addEventListener('change', () => loadPartitionsInto('vipMgrGroup', 'vipMgrHost', 'vipMgrPartition'));
-    loadGroupsInto('vipMgrGroup');
+    groupEl.addEventListener('change', () => loadVthunderHosts('vipMgrGroup', 'vipMgrHost', 'vipMgrPartition'));
+    hostEl.addEventListener('change', () => loadVthunderPartitions('vipMgrGroup', 'vipMgrHost', 'vipMgrPartition'));
+    loadVthunderGroups('vipMgrGroup');
     document.getElementById('vipEmptyMessage').style.display = 'block';
 }
 
@@ -175,11 +114,11 @@ export function openVipBuilder() {
     const partEl = document.getElementById('vipVthPartition');
 
     // Remove old listeners by replacing elements
-    groupEl.onchange = () => loadHostsInto('vipVthGroup', 'vipVthHost', 'vipVthPartition');
-    hostEl.onchange = () => loadPartitionsInto('vipVthGroup', 'vipVthHost', 'vipVthPartition');
+    groupEl.onchange = () => loadVthunderHosts('vipVthGroup', 'vipVthHost', 'vipVthPartition');
+    hostEl.onchange = () => loadVthunderPartitions('vipVthGroup', 'vipVthHost', 'vipVthPartition');
     partEl.onchange = () => loadCertsOnDevice();
 
-    loadGroupsInto('vipVthGroup');
+    loadVthunderGroups('vipVthGroup');
 
     // Reset form
     document.getElementById('vipName').value = '';

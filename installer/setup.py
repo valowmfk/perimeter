@@ -179,7 +179,7 @@ def screen_welcome(install_dir: str) -> Dict[str, str]:
     """Display welcome screen and verify prerequisites."""
     print()
     print(f"{BOLD}{CYAN}╔════════════════════════════════════════════════╗{NC}")
-    print(f"{BOLD}{CYAN}║         PERIMETER v3.0 — SETUP WIZARD          ║{NC}")
+    print(f"{BOLD}{CYAN}║         PERIMETER v3.2 — SETUP WIZARD          ║{NC}")
     print(f"{BOLD}{CYAN}║          Automation Platform for Labs           ║{NC}")
     print(f"{BOLD}{CYAN}╚════════════════════════════════════════════════╝{NC}")
     print()
@@ -318,7 +318,22 @@ def screen_service_user() -> Dict[str, Any]:
 
 
 # ═════════════════════════════════════════════════════════
-# SCREEN 3: Feature Selection
+# SCREEN 3: Homelab Name
+# ═════════════════════════════════════════════════════════
+
+def screen_homelab_name() -> str:
+    """Prompt for an optional homelab/lab name for MOTD and UI branding."""
+    header("Homelab Identity")
+    print("  Give your lab a name — this appears in the web UI header,")
+    print("  VM MOTD banners, and the version API.")
+    print()
+    name = prompt("Lab name (e.g. Q Branch, Homelab, SoCal Lab)", default="Perimeter Lab")
+    ok(f"Homelab name: {name}")
+    return name
+
+
+# ═════════════════════════════════════════════════════════
+# SCREEN 4: Feature Selection
 # ═════════════════════════════════════════════════════════
 
 def screen_features() -> Dict[str, bool]:
@@ -770,6 +785,7 @@ def screen_write_config(
     network: Dict,
     ssh: Dict,
     creds: Dict,
+    homelab_name: str = "Perimeter Lab",
 ) -> None:
     """Generate all configuration files."""
     header("Writing Configuration")
@@ -1080,6 +1096,7 @@ def screen_write_config(
         Environment=FLASK_PORT=8080
         Environment=PM_NODE={proxmox['pm_node']}
         Environment=PERIMETER_DNS_DOMAIN={network['dns_domain']}
+        Environment=PERIMETER_HOMELAB_NAME={homelab_name}
         Environment=PERIMETER_SUBNETS={subnets_json}
         Environment=PERIMETER_FEATURE_ANSIBLE={'1' if features.get('ansible') else '0'}
         Environment=PERIMETER_CERT_DOMAINS={cert_domains_str}
@@ -1112,6 +1129,48 @@ def screen_write_config(
     service_path = Path("/etc/systemd/system/perimeter.service")
     service_path.write_text(service_content)
     ok("Service file written: /etc/systemd/system/perimeter.service")
+
+    # ── Worker service (Celery) ───────────────────
+    worker_content = textwrap.dedent(f"""\
+        [Unit]
+        Description=Perimeter Celery Worker
+        After=redis.service network-online.target
+        Wants=redis.service
+
+        [Service]
+        Type=simple
+        User={username}
+        Group={username}
+
+        ExecStart={install_dir}/venv/bin/celery -A celery_app worker --loglevel=info --concurrency=4
+        WorkingDirectory={install_dir}/python
+
+        Environment=SOPS_AGE_KEY_FILE={age_key_path}
+        Environment=PERIMETER_ROOT={install_dir}
+
+        StandardOutput=journal
+        StandardError=journal
+        SyslogIdentifier=perimeter-worker
+
+        KillSignal=SIGTERM
+        TimeoutStopSec=300
+
+        Restart=on-failure
+        RestartSec=5
+
+        PrivateTmp=true
+        NoNewPrivileges=true
+        ProtectSystem=strict
+        ReadWritePaths={install_dir}
+        ReadWritePaths={home_dir}/.ssh
+
+        [Install]
+        WantedBy=multi-user.target
+    """)
+
+    worker_path = Path("/etc/systemd/system/perimeter-worker.service")
+    worker_path.write_text(worker_content)
+    ok("Worker service file written: /etc/systemd/system/perimeter-worker.service")
 
     # ── Fix ownership of install dir ───────────────
     info("Setting ownership...")
@@ -1158,7 +1217,9 @@ def screen_start_service(features: Dict[str, bool], install_dir: str) -> None:
 
     run_cmd(["systemctl", "daemon-reload"], check=False)
     run_cmd(["systemctl", "enable", "perimeter"], check=False)
+    run_cmd(["systemctl", "enable", "perimeter-worker"], check=False)
     result = run_cmd(["systemctl", "start", "perimeter"], check=False)
+    run_cmd(["systemctl", "start", "perimeter-worker"], check=False)
 
     import time
     time.sleep(3)
@@ -1240,7 +1301,10 @@ def main():
     # Screen 2: Service user
     user_config = screen_service_user()
 
-    # Screen 3: Feature selection
+    # Screen 3: Homelab name
+    homelab_name = screen_homelab_name()
+
+    # Screen 4: Feature selection
     features = screen_features()
 
     # Screen 4: Proxmox configuration
@@ -1264,6 +1328,7 @@ def main():
         network=network,
         ssh=ssh,
         creds=creds,
+        homelab_name=homelab_name,
     )
 
     # Screen 9: Start service + summary

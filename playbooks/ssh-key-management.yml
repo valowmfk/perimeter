@@ -6,10 +6,10 @@
 #
 # Usage:
 #   # Dry run on single host:
-#   ansible-playbook -i inventories/inventory.yml playbooks/ssh-key-management.yml -l k8s01.home.klouda.co --check
+#   ansible-playbook -i inventories/inventory.yml playbooks/ssh-key-management.yml -l <hostname> --check
 #
 #   # Apply to single host:
-#   ansible-playbook -i inventories/inventory.yml playbooks/ssh-key-management.yml -l k8s01.home.klouda.co
+#   ansible-playbook -i inventories/inventory.yml playbooks/ssh-key-management.yml -l <hostname>
 #
 #   # Roll out to all Linux hosts:
 #   ansible-playbook -i inventories/inventory.yml playbooks/ssh-key-management.yml -l all_linux
@@ -21,9 +21,10 @@
   hosts: all
   become: yes
   vars:
-    ssh_user: mklouda
+    ssh_user: "{{ ansible_user | default('perimeter') }}"
     exclusive_keys: false
-    get_secret: /home/mklouda/automation-demo/scripts/get-secret.sh
+    perimeter_root: "{{ lookup('env', 'PERIMETER_ROOT') | default('/opt/perimeter', true) }}"
+    get_secret: "{{ perimeter_root }}/scripts/get-secret.sh"
     ssh_authorized_keys:
       - "{{ lookup('pipe', get_secret ~ ' LINUX_SSH_KEY_1') }}"
       - "{{ lookup('pipe', get_secret ~ ' LINUX_SSH_KEY_2') }}"

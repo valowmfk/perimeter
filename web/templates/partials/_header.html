@@ -4,7 +4,7 @@
         <img src="/static/assets/perimeter/perimeter-logo.svg" alt="Perimeter" class="unified-logo">
         <div class="unified-title-block">
             <div class="unified-title">Perimeter</div>
-            <div class="unified-subtitle">Automation Platform</div>
+            <div class="unified-subtitle">{% if homelab_name %}{{ homelab_name }}{% else %}Automation Platform{% endif %}</div>
         </div>
     </div>
     <div class="unified-header-right">

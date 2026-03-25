@@ -20,8 +20,8 @@ import { loadCertStats, toggleCertFlyout, toggleCertDomainExpand,
          openCertViewModal, certViewChangeFile, copyCertToClipboard,
          closeCertViewModal, downloadCert, deleteCert, updateCertPreview,
          refreshCertDomains, onCreatePlaybookChange, toggleVipNameField,
-         toggleCertAdvanced, loadVthunderGroups, loadVthunderHosts,
-         loadVthunderPartitions, executeCertAction,
+         toggleCertAdvanced, loadCertVthunderGroups, loadCertVthunderHosts,
+         loadCertVthunderPartitions, executeCertAction,
          openDeployVthunderModal, closeDeployVthunderModal,
          onDeployGroupChange, onDeployHostChange, onDeployPartitionChange,
          executeDeployToVthunder } from './modules/certificates.js';
@@ -316,10 +316,10 @@ function bindEvents() {
     if (certTargetType) certTargetType.addEventListener('change', toggleVipNameField);
 
     const certVthunderGroup = document.getElementById('certVthunderGroup');
-    if (certVthunderGroup) certVthunderGroup.addEventListener('change', loadVthunderHosts);
+    if (certVthunderGroup) certVthunderGroup.addEventListener('change', loadCertVthunderHosts);
 
     const certVthunderHost = document.getElementById('certVthunderHost');
-    if (certVthunderHost) certVthunderHost.addEventListener('change', loadVthunderPartitions);
+    if (certVthunderHost) certVthunderHost.addEventListener('change', loadCertVthunderPartitions);
 
     // Deploy to vThunder modal cascade
     const deployVthGroup = document.getElementById('deployVthGroup');
@@ -377,30 +377,7 @@ function bindEvents() {
         }
     });
 
-    // Cert view modal: Escape to close + focus trap
-    document.addEventListener('keydown', function(e) {
-        const modal = document.getElementById('certViewModal');
-        if (!modal || modal.style.display === 'none') return;
-
-        if (e.key === 'Escape') {
-            closeCertViewModal();
-            return;
-        }
-
-        if (e.key === 'Tab') {
-            const focusable = modal.querySelectorAll('button, select, [tabindex]:not([tabindex="-1"])');
-            if (focusable.length === 0) return;
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
-            if (e.shiftKey && document.activeElement === first) {
-                e.preventDefault();
-                last.focus();
-            } else if (!e.shiftKey && document.activeElement === last) {
-                e.preventDefault();
-                first.focus();
-            }
-        }
-    });
+    // Cert view modal: Escape + focus trap handled by certificates.js openCertViewModal/closeCertViewModal
 }
 
 /* ============================

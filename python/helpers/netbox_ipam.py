@@ -7,24 +7,16 @@ and destruction, keeping IPAM in sync with DNS records.
 
 from __future__ import annotations
 
-import os
-
 import requests
 
 from axapi.utils import qlog, qlog_success, qlog_warning, qlog_error
+from config import cfg
 
 COMPONENT = "NETBOX-IPAM"
 
-NETBOX_URL = os.getenv("NETBOX_URL", "https://netbox.home.klouda.co")
-NETBOX_API_TOKEN = os.getenv("NETBOX_API_TOKEN", "")
-
 
 def _headers() -> dict:
-    return {
-        "Authorization": f"Token {NETBOX_API_TOKEN}",
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-    }
+    return cfg.netbox_headers() | {"Content-Type": "application/json"}
 
 
 def netbox_create_ip(ip: str, hostname: str) -> bool:
@@ -38,7 +30,7 @@ def netbox_create_ip(ip: str, hostname: str) -> bool:
     Returns:
         True on success or if entry already exists, False on error.
     """
-    if not NETBOX_API_TOKEN:
+    if not cfg.NETBOX_API_TOKEN:
         qlog_warning(COMPONENT, "NETBOX_API_TOKEN not set — skipping IPAM create")
         return True  # Non-fatal; don't block provisioning
 
@@ -57,7 +49,7 @@ def netbox_create_ip(ip: str, hostname: str) -> bool:
 
     try:
         r = requests.post(
-            f"{NETBOX_URL}/api/ipam/ip-addresses/",
+            f"{cfg.NETBOX_URL}/api/ipam/ip-addresses/",
             headers=_headers(),
             json=payload,
             verify=True,
@@ -93,7 +85,7 @@ def _netbox_update_existing(ip: str, hostname: str) -> bool:
 
     try:
         r = requests.patch(
-            f"{NETBOX_URL}/api/ipam/ip-addresses/{entry_id}/",
+            f"{cfg.NETBOX_URL}/api/ipam/ip-addresses/{entry_id}/",
             headers=_headers(),
             json={"dns_name": hostname, "description": hostname, "status": "active"},
             verify=True,
@@ -115,7 +107,7 @@ def _find_ip_id(ip: str) -> int | None:
     """Find the Netbox entry ID for a given IP address."""
     try:
         r = requests.get(
-            f"{NETBOX_URL}/api/ipam/ip-addresses/",
+            f"{cfg.NETBOX_URL}/api/ipam/ip-addresses/",
             headers=_headers(),
             params={"address": f"{ip}/24"},
             verify=True,
@@ -141,7 +133,7 @@ def netbox_delete_ip(ip: str) -> bool:
     Returns:
         True on success or if entry not found (idempotent), False on error.
     """
-    if not NETBOX_API_TOKEN:
+    if not cfg.NETBOX_API_TOKEN:
         qlog_warning(COMPONENT, "NETBOX_API_TOKEN not set — skipping IPAM delete")
         return True
 
@@ -154,7 +146,7 @@ def netbox_delete_ip(ip: str) -> bool:
 
     try:
         r = requests.delete(
-            f"{NETBOX_URL}/api/ipam/ip-addresses/{entry_id}/",
+            f"{cfg.NETBOX_URL}/api/ipam/ip-addresses/{entry_id}/",
             headers=_headers(),
             verify=True,
             timeout=10,
