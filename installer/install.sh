@@ -71,7 +71,7 @@ fi
 
 echo ""
 echo "================================================"
-echo "   PERIMETER v3.1 — BOOTSTRAP INSTALLER"
+echo "   PERIMETER v3.2 — BOOTSTRAP INSTALLER"
 echo "   Automation Platform for Labs"
 echo "================================================"
 echo ""

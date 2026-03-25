@@ -75,3 +75,23 @@ def locked_update(
             return result
         finally:
             fcntl.flock(lock_fh, fcntl.LOCK_UN)
+
+
+def merge_vm_config(
+    hostname: str,
+    vm_config: Dict[str, Any],
+    tfvars_path: Path,
+    section: str = "vm_configs",
+) -> None:
+    """Add or update a VM config in a tfvars file with locking and atomic write.
+
+    Args:
+        hostname: VM hostname (key in the section dict).
+        vm_config: Full VM configuration dict.
+        tfvars_path: Path to the .auto.tfvars.json file.
+        section: Top-level key in tfvars ("vm_configs", "vyos_configs", "vthunder_configs").
+    """
+    def updater(data: Dict[str, Any]) -> None:
+        data.setdefault(section, {})[hostname] = vm_config
+
+    locked_update(tfvars_path, updater)

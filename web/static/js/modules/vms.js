@@ -1,8 +1,9 @@
 // VM list, create, destroy, protect, bridges, hostname
 
-import { escapeHtml, showToast } from '../utils/dom.js';
+import { escapeHtml, showToast, getConfig } from '../utils/dom.js';
 import { ansiToHtml } from '../utils/ansi.js';
 import { confirmModal } from '../utils/modal.js';
+import { validateSubnetIp } from '../utils/validation.js';
 import { withBusy } from '../utils/busy.js';
 import {
     telemetryState, startMissionTimer, stopMissionTimer,
@@ -406,36 +407,15 @@ export function checkIpAvailability(inputEl, subnetValue) {
     const subnet = subnetValue
         || container.querySelector('[data-field="subnet"]')?.value
         || document.getElementById('subnet')?.value
-        || '10.1.55.0/24';
-    const subnetPrefix = subnet.split('/')[0].replace(/\.0$/, '.');
-    const prefixRegex = new RegExp('^' + subnetPrefix.replace(/\./g, '\\.') + '(\\d{1,3})$');
-    const match = val.match(prefixRegex);
+        || getConfig('defaultSubnet');
 
-    if (!match) {
-        if (val.length < subnetPrefix.length && subnetPrefix.startsWith(val)) {
-            indicator.textContent = '';
-            indicator.className = 'q-ip-validation-indicator';
-            msg.textContent = '';
-        } else if (val.startsWith(subnetPrefix)) {
-            indicator.textContent = '';
-            indicator.className = 'q-ip-validation-indicator';
-            msg.textContent = '';
-        } else {
-            indicator.textContent = '!';
-            indicator.className = 'q-ip-validation-indicator q-ip-invalid';
-            msg.textContent = `Expected: ${subnetPrefix}x`;
-            msg.className = 'q-ip-validation-msg q-ip-msg-invalid';
-            inputEl.classList.remove('q-input-ip-available', 'q-input-ip-taken');
-            inputEl.classList.add('q-input-ip-invalid');
-        }
-        return;
-    }
+    const result = validateSubnetIp(val, subnet);
 
-    const octet = parseInt(match[1], 10);
-    if (octet < 1 || octet > 254) {
+    if (result.status === 'typing') return;
+    if (result.status === 'invalid') {
         indicator.textContent = '!';
         indicator.className = 'q-ip-validation-indicator q-ip-invalid';
-        msg.textContent = 'Last octet must be 1\u2013254';
+        msg.textContent = result.error;
         msg.className = 'q-ip-validation-msg q-ip-msg-invalid';
         inputEl.classList.remove('q-input-ip-available', 'q-input-ip-taken');
         inputEl.classList.add('q-input-ip-invalid');
@@ -1164,7 +1144,8 @@ export function fleetVmTypeChange() {
 function buildCustomCardHtml(index) {
     const tplOptions = getTemplateOptions();
     const subnetSel = document.getElementById('fleetQuickSubnet');
-    const subnetHtml = subnetSel ? subnetSel.innerHTML : '<option value="10.1.55.0/24">10.1.55.0/24</option>';
+    const defSub = getConfig('defaultSubnet');
+    const subnetHtml = subnetSel ? subnetSel.innerHTML : (defSub ? `<option value="${defSub}">${defSub}</option>` : '');
     const bridgeHtml = availableBridges.map(b =>
         `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`
     ).join('');
@@ -1289,8 +1270,8 @@ export function fleetUpdatePreview() {
     const disk = document.getElementById('fleetQuickDisk')?.value || '32';
 
     const subnetSel = document.getElementById('fleetQuickSubnet');
-    const subnet = subnetSel ? subnetSel.value : '10.1.55.0/24';
-    const prefix = subnet.split('/')[0].replace(/\.0$/, '.');
+    const subnet = subnetSel ? subnetSel.value : getConfig('defaultSubnet');
+    const prefix = subnet ? subnet.split('/')[0].replace(/\.0$/, '.') : '';
 
     let html = '';
     for (let i = 0; i < Math.min(count, 20); i++) {
@@ -1325,7 +1306,7 @@ function collectQuickFleetVms() {
     const template_id = templateOpt?.dataset?.vmid || '';
     const vm_type = document.getElementById('fleetQuickVmType')?.value || 'linux';
     const subnetSel = document.getElementById('fleetQuickSubnet');
-    const subnet = subnetSel?.value || '10.1.55.0/24';
+    const subnet = subnetSel?.value || getConfig('defaultSubnet');
     const prefix = subnet.split('/')[0].replace(/\.0$/, '.');
     const bridge = document.getElementById('fleetQuickBridge')?.value || 'vmbr0';
 

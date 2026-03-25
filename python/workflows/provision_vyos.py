@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
 import os
-import socket
 import subprocess
 import sys
 import time
@@ -31,8 +29,10 @@ from utils.inventory_yaml import add_host_to_group
 from axapi.utils import qlog, qlog_success, qlog_warning, qlog_error
 from utils.qlog import init_correlation_id_from_env
 from utils.sops_env import load_env
-from utils.tfvars_io import locked_update
+from utils.tfvars_io import merge_vm_config
 from utils.terraform_runner import terraform_init, terraform_apply
+from utils.ssh_waiter import wait_for_ssh as _shared_wait_for_ssh
+from utils.parse_args import parse_bridges_arg
 
 COMPONENT = "VYOS-PROV"
 
@@ -53,15 +53,6 @@ DEFAULT_DATASTORE = "zfs-pool"
 from utils.network import normalize_ip_cidr
 
 
-def add_vm_to_tfvars(hostname: str, vm_config: Dict[str, Any]) -> None:
-    """Add a VM config to tfvars with file locking and atomic write."""
-    def updater(data: Dict[str, Any]) -> None:
-        data.setdefault("vyos_configs", {})[hostname] = vm_config
-
-    locked_update(TFVARS_PATH, updater)
-    qlog(COMPONENT, f"Saved tfvars to {TFVARS_PATH}")
-
-
 def run_terraform(hostname: str, vmid: int) -> int:
     """Run terraform init + apply for VyOS VM workspace."""
     if terraform_init(TF_DIR, COMPONENT) != 0:
@@ -71,11 +62,8 @@ def run_terraform(hostname: str, vmid: int) -> int:
 
 def poll_guest_agent_ip(vmid: int, node: str, timeout: int = 120) -> Optional[str]:
     """Poll Proxmox guest agent for a non-loopback IPv4 address."""
-    env = load_env()
-    token_id = env.get("PM_API_TOKEN_ID", "")
-    token_secret = env.get("PM_API_TOKEN_SECRET", "")
-    base_url = env.get("PM_API_URL", os.getenv("PM_API_URL", ""))
-    headers = {"Authorization": f"PVEAPIToken={token_id}={token_secret}"}
+    from config import cfg
+    headers = cfg.pm_headers()
 
     qlog(COMPONENT, f"Waiting for DHCP IP via guest agent (timeout={timeout}s)...")
     start = time.time()
@@ -83,17 +71,19 @@ def poll_guest_agent_ip(vmid: int, node: str, timeout: int = 120) -> Optional[st
     while time.time() - start < timeout:
         try:
             r = requests.get(
-                f"{base_url}/nodes/{node}/qemu/{vmid}/agent/network-get-interfaces",
+                f"{cfg.PM_API_URL}/nodes/{node}/qemu/{vmid}/agent/network-get-interfaces",
                 headers=headers, verify=False, timeout=10,
             )
             if r.status_code == 200:
-                for iface in r.json().get("data", {}).get("result", []):
+                data = r.json().get("data") or {}
+                interfaces = data.get("result", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+                for iface in interfaces:
                     if iface.get("name") == "lo":
                         continue
                     for addr in iface.get("ip-addresses", []):
                         if addr.get("ip-address-type") == "ipv4":
-                            ip = addr["ip-address"]
-                            if not ip.startswith("127."):
+                            ip = addr.get("ip-address", "")
+                            if ip and not ip.startswith("127."):
                                 qlog_success(COMPONENT, f"DHCP IP detected: {ip}")
                                 return ip
         except Exception:
@@ -106,17 +96,7 @@ def poll_guest_agent_ip(vmid: int, node: str, timeout: int = 120) -> Optional[st
 
 def wait_for_ssh(host: str, port: int = 22, timeout: int = 120) -> bool:
     """Wait for SSH port to become available."""
-    qlog(COMPONENT, f"Waiting for SSH on {host}:{port} (timeout={timeout}s)...")
-    start = time.time()
-    while time.time() - start < timeout:
-        try:
-            with socket.create_connection((host, port), timeout=5):
-                qlog_success(COMPONENT, f"SSH is ready on {host}")
-                return True
-        except (socket.timeout, socket.error, ConnectionRefusedError, OSError):
-            time.sleep(5)
-    qlog_error(COMPONENT, f"SSH not available on {host}:{port} after {timeout}s")
-    return False
+    return _shared_wait_for_ssh(host, port=port, timeout=timeout, component=COMPONENT)
 
 
 def vyos_bootstrap(dhcp_ip: str, static_ip_cidr: str, gateway: str, ssh_user: str) -> int:
@@ -275,12 +255,16 @@ def provision_vyos_vm(
     # Subnet-aware gateway/DNS lookup
     from config import subnet_for_ip
     subnet_info = subnet_for_ip(ip)
-    gateway = env.get("LINUX_GATEWAY") or (subnet_info["gateway"] if subnet_info else "10.1.55.254")
+    gateway = env.get("LINUX_GATEWAY") or (subnet_info["gateway"] if subnet_info else None)
     dns_env = env.get("LINUX_DNS_SERVERS", "")
     if dns_env:
         dns_servers = [s.strip() for s in dns_env.split(",")]
     else:
-        dns_servers = subnet_info["dns"] if subnet_info else ["10.1.55.10", "10.1.55.11"]
+        dns_servers = subnet_info["dns"] if subnet_info else None
+
+    if not gateway or not dns_servers:
+        qlog_error(COMPONENT, "No subnet config found for IP — set PERIMETER_SUBNETS or LINUX_GATEWAY/LINUX_DNS_SERVERS")
+        return 1
     datastore = env.get("LINUX_DATASTORE", DEFAULT_DATASTORE)
 
     if not ssh_keys:
@@ -315,8 +299,7 @@ def provision_vyos_vm(
         "tags": ["lab"],
     }
 
-    add_vm_to_tfvars(hostname, vm_config)
-
+    merge_vm_config(hostname, vm_config, TFVARS_PATH, section="vyos_configs")
     qlog_success(COMPONENT, f"VM config for {hostname} merged into tfvars")
 
     rc = run_terraform(hostname, vmid)
@@ -392,13 +375,7 @@ def main() -> int:
     vm_type = sys.argv[10]
     bridges_arg = sys.argv[12]
 
-    # Parse bridges - accepts JSON array or single bridge string for backwards compat
-    try:
-        bridges = json.loads(bridges_arg)
-        if isinstance(bridges, str):
-            bridges = [bridges]
-    except json.JSONDecodeError:
-        bridges = [bridges_arg]
+    bridges = parse_bridges_arg(bridges_arg)
 
     if vm_type != "vyos":
         qlog_error(COMPONENT, f"provision_vyos.py called with vm_type={vm_type} (expected vyos)")

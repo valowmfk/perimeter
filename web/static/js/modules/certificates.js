@@ -1,9 +1,10 @@
 // Certificate management UI
 
-import { escapeHtml, showToast, appendLogLine } from '../utils/dom.js';
+import { escapeHtml, showToast, appendLogLine, togglePanel } from '../utils/dom.js';
 import { confirmModal } from '../utils/modal.js';
 import { withBusy } from '../utils/busy.js';
 import { refreshPlaybooks } from './ansible.js';
+import { loadVthunderGroups, loadVthunderHosts, loadVthunderPartitions } from '../utils/cascade.js';
 
 /* ============================
    Header Strip Stats
@@ -66,20 +67,11 @@ function certStatusDot(status) {
    ============================ */
 
 export function toggleCertFlyout() {
-    const flyout = document.getElementById('certFlyout');
-    const chevron = document.getElementById('certChevron');
-    const toggle = document.querySelector('[data-action="toggle-cert-flyout"]');
-    if (flyout.style.display === 'none') {
-        flyout.style.display = 'block';
-        chevron.textContent = '\u25b4';
-        if (toggle) toggle.setAttribute('aria-expanded', 'true');
-        loadCertDetail();
-
-    } else {
-        flyout.style.display = 'none';
-        chevron.textContent = '\u25be';
-        if (toggle) toggle.setAttribute('aria-expanded', 'false');
-    }
+    togglePanel('certFlyout', {
+        chevronId: 'certChevron',
+        toggleSelector: '[data-action="toggle-cert-flyout"]',
+        onOpen: loadCertDetail,
+    });
 }
 
 function loadCertDetail() {
@@ -175,16 +167,7 @@ function loadCertDetail() {
 
 export function toggleCertDomainExpand(domain) {
     const key = domain.replace(/\./g, '_');
-    const subs = document.getElementById('certSubs_' + key);
-    const chevron = document.getElementById('certChevron_' + key);
-    if (!subs) return;
-    if (subs.style.display === 'none') {
-        subs.style.display = 'block';
-        if (chevron) chevron.textContent = '\u25b4';
-    } else {
-        subs.style.display = 'none';
-        if (chevron) chevron.textContent = '\u25be';
-    }
+    togglePanel('certSubs_' + key, { chevronId: 'certChevron_' + key });
 }
 
 /* ============================
@@ -408,7 +391,7 @@ export function toggleVipNameField() {
 
     if (targetType.value === 'vthunder_vip') {
         vthunderSection.style.display = 'block';
-        loadVthunderGroups();
+        loadCertVthunderGroups();
     } else {
         vthunderSection.style.display = 'none';
     }
@@ -431,117 +414,19 @@ export function toggleCertAdvanced() {
 }
 
 /* ============================
-   vThunder Cascade
+   vThunder Cascade (delegates to shared cascade helper)
    ============================ */
 
-export function loadVthunderGroups() {
-    const groupSelect = document.getElementById('certVthunderGroup');
-    if (!groupSelect) return;
-
-    groupSelect.innerHTML = '<option value="">Select group...</option>';
-
-    fetch('/inventory/groups?file=inventory.yml')
-        .then(resp => resp.json())
-        .then(groups => {
-            const vthunderGroups = groups.filter(g => g.toLowerCase().includes('vthunder'));
-            vthunderGroups.forEach(group => {
-                const opt = document.createElement('option');
-                opt.value = group;
-                opt.textContent = group;
-                groupSelect.appendChild(opt);
-            });
-            appendLogLine(`[INFO] Loaded ${vthunderGroups.length} vThunder inventory groups`);
-        })
-        .catch(err => {
-            appendLogLine(`[ERROR] Failed to load vThunder groups: ${err.message}`);
-            showToast(`Error loading vThunder groups: ${err.message}`);
-        });
+export function loadCertVthunderGroups() {
+    loadVthunderGroups('certVthunderGroup', { log: true });
 }
 
-export function loadVthunderHosts() {
-    const groupSelect = document.getElementById('certVthunderGroup');
-    const hostSelect = document.getElementById('certVthunderHost');
-    const partitionSelect = document.getElementById('certVthunderPartition');
-
-    if (!groupSelect || !hostSelect) return;
-
-    const groupName = groupSelect.value;
-
-    hostSelect.innerHTML = '<option value="">Select host...</option>';
-    partitionSelect.innerHTML = '<option value="">Select partition...</option>';
-
-    if (!groupName) return;
-
-    appendLogLine(`[INFO] Loading vThunder hosts from group: ${groupName}`);
-
-    fetch('/api/vthunder/hosts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inventory_file: 'inventory.yml', group_name: groupName })
-    })
-    .then(resp => resp.json())
-    .then(data => {
-        if (data.error) {
-            appendLogLine(`[ERROR] ${data.error}`);
-            showToast(data.error);
-            return;
-        }
-        data.hosts.forEach(host => {
-            const opt = document.createElement('option');
-            opt.value = host;
-            opt.textContent = host;
-            hostSelect.appendChild(opt);
-        });
-        appendLogLine(`[INFO] Loaded ${data.hosts.length} vThunder host(s)`);
-    })
-    .catch(err => {
-        appendLogLine(`[ERROR] Failed to load hosts: ${err.message}`);
-        showToast(`Error loading hosts: ${err.message}`);
-    });
+export function loadCertVthunderHosts() {
+    loadVthunderHosts('certVthunderGroup', 'certVthunderHost', 'certVthunderPartition', { log: true });
 }
 
-export function loadVthunderPartitions() {
-    const groupSelect = document.getElementById('certVthunderGroup');
-    const hostSelect = document.getElementById('certVthunderHost');
-    const partitionSelect = document.getElementById('certVthunderPartition');
-
-    if (!hostSelect || !partitionSelect) return;
-
-    const groupName = groupSelect.value;
-    const host = hostSelect.value;
-
-    partitionSelect.innerHTML = '<option value="">Loading partitions...</option>';
-
-    if (!host || !groupName) return;
-
-    appendLogLine(`[INFO] Connecting to ${host} to retrieve partitions...`);
-
-    fetch('/api/vthunder/partitions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inventory_file: 'inventory.yml', group_name: groupName, host: host })
-    })
-    .then(resp => resp.json())
-    .then(data => {
-        partitionSelect.innerHTML = '<option value="">Select partition...</option>';
-        if (data.error) {
-            appendLogLine(`[ERROR] ${data.error}`);
-            showToast(data.error);
-            return;
-        }
-        data.partitions.forEach(partition => {
-            const opt = document.createElement('option');
-            opt.value = partition['partition-name'];
-            opt.textContent = `${partition['partition-name']} (ID: ${partition.id})`;
-            partitionSelect.appendChild(opt);
-        });
-        appendLogLine(`[SUCCESS] Retrieved ${data.partitions.length} partition(s) from ${host}`);
-    })
-    .catch(err => {
-        partitionSelect.innerHTML = '<option value="">Select partition...</option>';
-        appendLogLine(`[ERROR] Failed to load partitions: ${err.message}`);
-        showToast(`Error loading partitions: ${err.message}`);
-    });
+export function loadCertVthunderPartitions() {
+    loadVthunderPartitions('certVthunderGroup', 'certVthunderHost', 'certVthunderPartition', { log: true });
 }
 
 /* ============================
@@ -786,19 +671,7 @@ export function openDeployVthunderModal(baseDomain, domain) {
     partSel.innerHTML = '<option value="">-- Select Partition --</option>';
 
     modal.style.display = 'flex';
-
-    // Load vThunder groups from inventory
-    fetch('/inventory/groups?file=inventory.yml')
-        .then(r => r.json())
-        .then(groups => {
-            const vthunderGroups = (groups || []).filter(g => g.toLowerCase().includes('vthunder'));
-            vthunderGroups.forEach(g => {
-                const opt = document.createElement('option');
-                opt.value = g;
-                opt.textContent = g;
-                groupSel.appendChild(opt);
-            });
-        });
+    loadVthunderGroups('deployVthGroup');
 }
 
 export function closeDeployVthunderModal() {
@@ -807,59 +680,13 @@ export function closeDeployVthunderModal() {
 }
 
 export function onDeployGroupChange() {
-    const group = document.getElementById('deployVthGroup').value;
-    const hostSel = document.getElementById('deployVthHost');
-    const partSel = document.getElementById('deployVthPartition');
-    const renewalEl = document.getElementById('deployRenewalStatus');
-
-    hostSel.innerHTML = '<option value="">-- Select Host --</option>';
-    partSel.innerHTML = '<option value="">-- Select Partition --</option>';
-    renewalEl.style.display = 'none';
-
-    if (!group) return;
-
-    fetch('/api/vthunder/hosts', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ inventory_file: 'inventory.yml', group_name: group })
-    })
-    .then(r => r.json())
-    .then(data => {
-        (data.hosts || []).forEach(h => {
-            const opt = document.createElement('option');
-            opt.value = h;
-            opt.textContent = h;
-            hostSel.appendChild(opt);
-        });
-    });
+    document.getElementById('deployRenewalStatus').style.display = 'none';
+    loadVthunderHosts('deployVthGroup', 'deployVthHost', 'deployVthPartition');
 }
 
 export function onDeployHostChange() {
-    const group = document.getElementById('deployVthGroup').value;
-    const host = document.getElementById('deployVthHost').value;
-    const partSel = document.getElementById('deployVthPartition');
-    const renewalEl = document.getElementById('deployRenewalStatus');
-
-    partSel.innerHTML = '<option value="">-- Select Partition --</option>';
-    renewalEl.style.display = 'none';
-
-    if (!host) return;
-
-    fetch('/api/vthunder/partitions', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ inventory_file: 'inventory.yml', group_name: group, host })
-    })
-    .then(r => r.json())
-    .then(data => {
-        (data.partitions || []).forEach(p => {
-            const name = p['partition-name'] || p.name || '';
-            const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = name;
-            partSel.appendChild(opt);
-        });
-    });
+    document.getElementById('deployRenewalStatus').style.display = 'none';
+    loadVthunderPartitions('deployVthGroup', 'deployVthHost', 'deployVthPartition', { showId: false });
 }
 
 export function onDeployPartitionChange() {

@@ -26,6 +26,26 @@ from helpers.slb_manager import create_slb_config, destroy_slb_config
 
 system_bp = Blueprint("system", __name__)
 
+# ── Version info (read once at import time) ────────────────
+_VERSION_FILE = os.path.join(os.path.dirname(__file__), "..", "VERSION")
+_VERSION = "unknown"
+try:
+    with open(_VERSION_FILE) as _f:
+        _VERSION = _f.read().strip()
+except FileNotFoundError:
+    pass
+
+
+@system_bp.route("/api/version")
+def api_version():
+    """Return platform version, features, and node info."""
+    return jsonify({
+        "version": _VERSION,
+        "pm_node": cfg.PM_NODE,
+        "homelab_name": os.getenv("PERIMETER_HOMELAB_NAME", ""),
+        "features": cfg.FEATURES,
+    })
+
 
 @system_bp.route("/api/network_bridges")
 def api_network_bridges():

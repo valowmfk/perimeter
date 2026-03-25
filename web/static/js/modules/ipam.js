@@ -1,6 +1,7 @@
 // IPAM data loading and IP validation
 
-import { escapeHtml, showToast } from '../utils/dom.js';
+import { escapeHtml, showToast, getConfig } from '../utils/dom.js';
+import { validateSubnetIp } from '../utils/validation.js';
 
 let ipamData = null;
 let ipamLoaded = false;
@@ -38,7 +39,7 @@ export function loadIpamData() {
     const error = document.getElementById('ipamError');
     const table = document.getElementById('ipamTableContainer');
     const subnetSel = document.getElementById('ipamSubnetSelect');
-    const subnet = subnetSel ? subnetSel.value : '10.1.55.0/24';
+    const subnet = subnetSel ? subnetSel.value : getConfig('defaultSubnet');
 
     if (loading) loading.style.display = 'block';
     if (error) error.style.display = 'none';
@@ -118,41 +119,22 @@ export function validateIpAddress() {
         return;
     }
 
-    // Dynamic subnet validation based on selected subnet
     const subnetSel = document.getElementById('subnet');
-    const selectedSubnet = subnetSel ? subnetSel.value : '10.1.55.0/24';
-    const subnetPrefix = selectedSubnet.split('/')[0].replace(/\.0$/, '.');
-    const prefixRegex = new RegExp('^' + subnetPrefix.replace(/\./g, '\\.') + '(\\d{1,3})$');
-    const match = val.match(prefixRegex);
+    const selectedSubnet = subnetSel ? subnetSel.value : getConfig('defaultSubnet');
+    const result = validateSubnetIp(val, selectedSubnet);
 
-    if (!match) {
-        // Check if user is still typing a valid prefix
-        if (val.length < subnetPrefix.length && subnetPrefix.startsWith(val)) {
-            indicator.textContent = '';
-            indicator.className = 'q-ip-validation-indicator';
-            msg.textContent = '';
-            input.classList.remove('q-input-ip-available', 'q-input-ip-taken', 'q-input-ip-invalid');
-        } else if (val.startsWith(subnetPrefix)) {
-            indicator.textContent = '';
-            indicator.className = 'q-ip-validation-indicator';
-            msg.textContent = '';
-            input.classList.remove('q-input-ip-available', 'q-input-ip-taken', 'q-input-ip-invalid');
-        } else {
-            indicator.textContent = '!';
-            indicator.className = 'q-ip-validation-indicator q-ip-invalid';
-            msg.textContent = `Expected format: ${subnetPrefix}x`;
-            msg.className = 'q-ip-validation-msg q-ip-msg-invalid';
-            input.classList.remove('q-input-ip-available', 'q-input-ip-taken');
-            input.classList.add('q-input-ip-invalid');
-        }
+    if (result.status === 'empty' || result.status === 'typing') {
+        indicator.textContent = '';
+        indicator.className = 'q-ip-validation-indicator';
+        msg.textContent = '';
+        input.classList.remove('q-input-ip-available', 'q-input-ip-taken', 'q-input-ip-invalid');
         return;
     }
 
-    const octet = parseInt(match[1], 10);
-    if (octet < 1 || octet > 254) {
+    if (result.status === 'invalid') {
         indicator.textContent = '!';
         indicator.className = 'q-ip-validation-indicator q-ip-invalid';
-        msg.textContent = 'Last octet must be 1\u2013254';
+        msg.textContent = result.error;
         msg.className = 'q-ip-validation-msg q-ip-msg-invalid';
         input.classList.remove('q-input-ip-available', 'q-input-ip-taken');
         input.classList.add('q-input-ip-invalid');

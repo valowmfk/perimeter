@@ -14,8 +14,8 @@ from helpers.netbox_ipam import (
 
 @pytest.fixture(autouse=True)
 def patch_env(monkeypatch):
-    monkeypatch.setattr("helpers.netbox_ipam.NETBOX_URL", "https://netbox-test")
-    monkeypatch.setattr("helpers.netbox_ipam.NETBOX_API_TOKEN", "test-token")
+    monkeypatch.setattr("helpers.netbox_ipam.cfg.NETBOX_URL", "https://netbox-test")
+    monkeypatch.setattr("helpers.netbox_ipam.cfg.NETBOX_API_TOKEN", "test-token")
 
 
 # ──────────────────────────────
@@ -52,7 +52,7 @@ class TestNetboxCreateIp:
         assert netbox_create_ip("10.1.55.50", "web-01") is False
 
     def test_create_no_token(self, monkeypatch):
-        monkeypatch.setattr("helpers.netbox_ipam.NETBOX_API_TOKEN", "")
+        monkeypatch.setattr("helpers.netbox_ipam.cfg.NETBOX_API_TOKEN", "")
         assert netbox_create_ip("10.1.55.50", "web-01") is True  # non-fatal skip
 
 
@@ -137,5 +137,5 @@ class TestNetboxDeleteIp:
         assert netbox_delete_ip("10.1.55.50") is False
 
     def test_delete_no_token(self, monkeypatch):
-        monkeypatch.setattr("helpers.netbox_ipam.NETBOX_API_TOKEN", "")
+        monkeypatch.setattr("helpers.netbox_ipam.cfg.NETBOX_API_TOKEN", "")
         assert netbox_delete_ip("10.1.55.50") is True  # non-fatal skip

@@ -26,63 +26,12 @@ from helpers.dns_manager import dns_remove_record
 from helpers.netbox_ipam import netbox_delete_ip
 from axapi.utils import qlog, qlog_success, qlog_warning, qlog_error  # type: ignore
 from utils.qlog import init_correlation_id_from_env
-from utils.tfvars_io import read_tfvars, locked_update
+from utils.tfvars_io import locked_update
 from utils.inventory_yaml import remove_host as remove_host_from_yaml
+from utils.vm_types import get_vm_type, find_vm_in_tfvars as find_vm_by_id
 
 COMPONENT = "VM-DESTROY"
-
-# Workspace-specific Terraform directories (no more -target!)
-TF_LINUX_DIR = ROOT_DIR / "terraform" / "linux_vm"
-TF_VTHUNDER_DIR = ROOT_DIR / "terraform" / "vthunder_vm"
-TF_VYOS_DIR = ROOT_DIR / "terraform" / "vyos_vm"
-TFVARS_LINUX_PATH = TF_LINUX_DIR / "perimeter-linux.auto.tfvars.json"
-TFVARS_VTHUNDER_PATH = TF_VTHUNDER_DIR / "perimeter-vthunder.auto.tfvars.json"
-TFVARS_VYOS_PATH = TF_VYOS_DIR / "perimeter-vyos.auto.tfvars.json"
 KNOWN_HOSTS = Path.home() / ".ssh" / "known_hosts"
-
-
-# ─────────────────────────────
-# Helpers
-# ─────────────────────────────
-
-def _tfvars_path(vm_type: str) -> Path:
-    if vm_type == "linux":
-        return TFVARS_LINUX_PATH
-    elif vm_type == "vyos":
-        return TFVARS_VYOS_PATH
-    return TFVARS_VTHUNDER_PATH
-
-
-def find_vm_by_id(vmid: int) -> tuple[Optional[str], Optional[str], Optional[str]]:
-    """
-    Search workspace-specific tfvars for VM by VMID.
-    Returns: (vm_type, key, ip) or (None, None, None)
-    """
-    # Check Linux VMs
-    linux_tfvars = read_tfvars(_tfvars_path("linux"))
-    for key, config in linux_tfvars.get("vm_configs", {}).items():
-        if config.get("vm_id") == vmid:
-            ip_cidr = config.get("ipv4_address", "")
-            ip = ip_cidr.split("/")[0] if "/" in ip_cidr else ip_cidr
-            return ("linux", key, ip)
-
-    # Check vThunder VMs
-    vthunder_tfvars = read_tfvars(_tfvars_path("vthunder"))
-    for key, config in vthunder_tfvars.get("vthunder_configs", {}).items():
-        if config.get("vm_id") == vmid:
-            ip_cidr = config.get("ipv4_address", "")
-            ip = ip_cidr.split("/")[0] if "/" in ip_cidr else ip_cidr
-            return ("vthunder", key, ip)
-
-    # Check VyOS VMs
-    vyos_tfvars = read_tfvars(_tfvars_path("vyos"))
-    for key, config in vyos_tfvars.get("vyos_configs", {}).items():
-        if config.get("vm_id") == vmid:
-            ip_cidr = config.get("ipv4_address", "")
-            ip = ip_cidr.split("/")[0] if "/" in ip_cidr else ip_cidr
-            return ("vyos", key, ip)
-
-    return (None, None, None)
 
 
 
@@ -108,13 +57,9 @@ def remove_ssh_host_keys(hostname: str, ip: str) -> None:
 
 def run_terraform_destroy(vm_type: str, hostname: str) -> int:
     """Run terraform destroy for workspace-specific VM using -target."""
-    tf_dirs = {"linux": TF_LINUX_DIR, "vthunder": TF_VTHUNDER_DIR, "vyos": TF_VYOS_DIR}
-    tf_dir = tf_dirs.get(vm_type, TF_LINUX_DIR)
-
-    # Determine the module path based on VM type
-    module_names = {"linux": "linux_vm", "vthunder": "vthunder_vm", "vyos": "vyos_vm"}
-    module_name = module_names.get(vm_type, "linux_vm")
-    target = f'module.{module_name}["{hostname}"]'
+    vt = get_vm_type(vm_type)
+    tf_dir = vt.terraform_dir
+    target = f'module.{vt.terraform_module}["{hostname}"]'
 
     qlog(COMPONENT, f"Running terraform destroy for {hostname} in {vm_type} workspace (target={target})...")
 
@@ -157,17 +102,16 @@ def destroy_vm(vmid: int) -> int:
     qlog(COMPONENT, f"Destroy requested for VMID {vmid}")
 
     # Find VM
-    vm_type, key, ip = find_vm_by_id(vmid)
+    result = find_vm_by_id(vmid)
 
-    if not vm_type or not key:
+    if not result:
         qlog_error(COMPONENT, f"No VM found with VMID {vmid}")
         return 1
 
-    qlog(COMPONENT, f"Found {vm_type} VM: {key} ({ip})")
+    vm_type, key, ip = result
+    vt = get_vm_type(vm_type)
 
-    # Determine tfvars section
-    tfvars_sections = {"linux": "vm_configs", "vthunder": "vthunder_configs", "vyos": "vyos_configs"}
-    tfvars_section = tfvars_sections.get(vm_type, "vm_configs")
+    qlog(COMPONENT, f"Found {vm_type} VM: {key} ({ip})")
 
     # DNS cleanup
     from config import cfg
@@ -193,11 +137,11 @@ def destroy_vm(vmid: int) -> int:
 
     # Remove from workspace-specific tfvars (locked + atomic)
     def remove_entry(data: dict) -> None:
-        if key in data.get(tfvars_section, {}):
-            del data[tfvars_section][key]
+        if key in data.get(vt.tfvars_section, {}):
+            del data[vt.tfvars_section][key]
 
-    locked_update(_tfvars_path(vm_type), remove_entry)
-    qlog(COMPONENT, f"Removed {key} from {tfvars_section}")
+    locked_update(vt.tfvars_path, remove_entry)
+    qlog(COMPONENT, f"Removed {key} from {vt.tfvars_section}")
 
     # Remove from inventory.yml (all VM types)
     removed_group = remove_host_from_yaml(key)

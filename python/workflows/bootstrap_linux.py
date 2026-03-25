@@ -6,7 +6,6 @@ import os
 import subprocess
 import sys
 import time
-import socket
 from pathlib import Path
 
 # ──────────────────────────────────────────────
@@ -24,6 +23,7 @@ if str(PYTHON_DIR) not in sys.path:
 # ──────────────────────────────────────────────
 from axapi.utils import qlog, qlog_success, qlog_warning, qlog_error  # type: ignore
 from utils.qlog import init_correlation_id_from_env
+from utils.ssh_waiter import wait_for_ssh as _shared_wait_for_ssh
 
 COMPONENT = "LINUX-BOOT"
 
@@ -40,30 +40,8 @@ DEFAULT_SSH_TIMEOUT = 600
 # ─────────────────────────────
 
 def wait_for_ssh(host: str, port: int = 22, timeout: int = DEFAULT_SSH_TIMEOUT) -> bool:
-    """
-    Wait for SSH port to be available.
-
-    Args:
-        host: Target IP address
-        port: SSH port (default 22)
-        timeout: Max wait time in seconds
-
-    Returns:
-        True if SSH is available, False if timeout
-    """
-    qlog(COMPONENT, f"Waiting for SSH on {host}:{port} (timeout={timeout}s)...")
-    start = time.time()
-
-    while time.time() - start < timeout:
-        try:
-            with socket.create_connection((host, port), timeout=5):
-                qlog_success(COMPONENT, f"SSH port {port} is open on {host}")
-                return True
-        except (socket.timeout, socket.error, ConnectionRefusedError, OSError):
-            time.sleep(5)
-
-    qlog_error(COMPONENT, f"SSH not available on {host}:{port} after {timeout}s")
-    return False
+    """Wait for SSH port to be available. Delegates to shared helper."""
+    return _shared_wait_for_ssh(host, port=port, timeout=timeout, component=COMPONENT)
 
 
 # ─────────────────────────────

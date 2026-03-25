@@ -1,22 +1,13 @@
 // Proxmox cluster flyout — template management, node status
 
-import { showToast, appendLogLine } from '../utils/dom.js';
+import { showToast, appendLogLine, togglePanel } from '../utils/dom.js';
 
 
 export function toggleProxmoxFlyout() {
-    const flyout = document.getElementById('proxmoxFlyout');
-    const chevron = document.getElementById('proxmoxChevron');
-    if (!flyout) return;
-
-    if (flyout.style.display === 'none') {
-        flyout.style.display = 'block';
-        if (chevron) chevron.textContent = '\u25B4';
-        loadNodeStatus();
-        loadTemplates();
-    } else {
-        flyout.style.display = 'none';
-        if (chevron) chevron.textContent = '\u25BE';
-    }
+    togglePanel('proxmoxFlyout', {
+        chevronId: 'proxmoxChevron',
+        onOpen: () => { loadNodeStatus(); loadTemplates(); },
+    });
 }
 
 export function closeProxmoxFlyoutOnOutsideClick(e) {

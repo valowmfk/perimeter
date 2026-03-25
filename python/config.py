@@ -93,7 +93,7 @@ class Config:
     )
     NETBOX_CACHE_TTL: int = 45  # seconds
     NETBOX_SUBNET: str = field(
-        default_factory=lambda: os.getenv("NETBOX_SUBNET", "10.1.55.0/24")
+        default_factory=lambda: os.getenv("NETBOX_SUBNET", "")
     )
 
     # ── Subnets (populated by installer via PERIMETER_SUBNETS JSON env var) ──
@@ -116,7 +116,7 @@ class Config:
 
     # ── Pi-hole ─────────────────────────────────────────────────
     PIHOLE_URL: str = field(
-        default_factory=lambda: os.getenv("PIHOLE_URL", "http://10.1.55.10")
+        default_factory=lambda: os.getenv("PIHOLE_URL", "")
     )
 
     # ── Certificates ────────────────────────────────────────────
