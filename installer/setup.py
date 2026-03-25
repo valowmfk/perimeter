@@ -804,6 +804,7 @@ def screen_write_config(
             shutil.copy2(str(age_key_path), str(backup_path))
             os.chown(str(backup_path), uid, gid)
             warn(f"Old key backed up to: {backup_path}")
+            age_key_path.unlink()  # Remove old key so age-keygen can write
             run_cmd(["age-keygen", "-o", str(age_key_path)], check=True)
             age_key_path.chmod(0o600)
             os.chown(str(age_key_path), uid, gid)
