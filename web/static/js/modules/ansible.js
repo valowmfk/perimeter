@@ -190,9 +190,6 @@ export function onGroupChange() {
 }
 
 export function initAnsible() {
-    const theme = document.getElementById('themeSelector').value;
-    if (theme === 'a10') {
-        refreshPlaybooks();
-        refreshInventories();
-    }
+    refreshPlaybooks();
+    refreshInventories();
 }

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 # ──────────────────────────────────────────────
-# Ensure automation-demo/python is on sys.path
+# Ensure python/ is on sys.path
 # ──────────────────────────────────────────────
 THIS_FILE = Path(__file__).resolve()
 PYTHON_DIR = THIS_FILE.parent.parent
@@ -39,7 +39,7 @@ COMPONENT = "VYOS-PROV"
 # Workspace-specific Terraform directory
 TF_DIR = ROOT_DIR / "terraform" / "vyos_vm"
 TFVARS_PATH = TF_DIR / "perimeter-vyos.auto.tfvars.json"
-DEFAULT_ENV_FILE = str(ROOT_DIR / "secrets" / "automation-demo.enc.env")
+DEFAULT_ENV_FILE = str(ROOT_DIR / "secrets" / "perimeter.enc.env")
 
 # Fallback defaults
 DEFAULT_DATASTORE = "zfs-pool"
@@ -74,7 +74,7 @@ def poll_guest_agent_ip(vmid: int, node: str, timeout: int = 120) -> Optional[st
     env = load_env()
     token_id = env.get("PM_API_TOKEN_ID", "")
     token_secret = env.get("PM_API_TOKEN_SECRET", "")
-    base_url = env.get("PM_API_URL", "https://goldfinger.home.klouda.co:8006/api2/json")
+    base_url = env.get("PM_API_URL", os.getenv("PM_API_URL", ""))
     headers = {"Authorization": f"PVEAPIToken={token_id}={token_secret}"}
 
     qlog(COMPONENT, f"Waiting for DHCP IP via guest agent (timeout={timeout}s)...")
@@ -147,7 +147,7 @@ def vyos_bootstrap(dhcp_ip: str, static_ip_cidr: str, gateway: str, ssh_user: st
                 "ssh", "-o", "StrictHostKeyChecking=no",
                 "-o", "UserKnownHostsFile=/dev/null",
                 "-o", "ConnectTimeout=10",
-                "-i", os.path.expanduser("~/.ssh/ansible_qbranch"),
+                "-i", os.path.expanduser("~/.ssh/ansible_perimeter"),
                 f"{ssh_user}@{dhcp_ip}",
                 "vbash", "-s",
             ],
@@ -195,7 +195,7 @@ def vyos_bootstrap(dhcp_ip: str, static_ip_cidr: str, gateway: str, ssh_user: st
                 "ssh", "-o", "StrictHostKeyChecking=no",
                 "-o", "UserKnownHostsFile=/dev/null",
                 "-o", "ConnectTimeout=10",
-                "-i", os.path.expanduser("~/.ssh/ansible_qbranch"),
+                "-i", os.path.expanduser("~/.ssh/ansible_perimeter"),
                 f"{ssh_user}@{static_ip}",
                 "vbash", "-s",
             ],
@@ -262,7 +262,7 @@ def provision_vyos_vm(
         qlog_error(COMPONENT, f"Failed to load environment from {env_file} — is SOPS configured?")
         return 1
 
-    ssh_user = env.get("LINUX_SSH_USER", "mklouda")
+    ssh_user = env.get("LINUX_SSH_USER", os.getenv("USER", "perimeter"))
     ssh_keys = []
     i = 1
     while True:

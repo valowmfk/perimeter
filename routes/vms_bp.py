@@ -3,13 +3,9 @@
 import json
 import os
 import requests
-import subprocess
 import time
 
-from flask import Blueprint, Response, g, jsonify, request
-from threading import Thread
-
-from utils.qlog import get_correlation_id
+from flask import Blueprint, Response, jsonify, request
 from utils.inventory_yaml import (
     find_host_group,
     list_staging_hosts,
@@ -19,14 +15,10 @@ from utils.inventory_yaml import (
 )
 
 from config import cfg
-from utils.metrics import VM_PROVISIONS, VM_PROVISIONS_ACTIVE
 from .audit import audit_log
 from .shared import (
-    JOB_STATUS,
     PM_API_URL,
     ROOT_DIR,
-    LINUX_SCRIPT_DIR,
-    SUBPROCESS_TIMEOUT,
     TF_LINUX_STATE_PATH,
     TF_LINUX_TFVARS_PATH,
     TF_VYOS_TFVARS_PATH,
@@ -42,80 +34,6 @@ from .shared import (
 )
 
 vms_bp = Blueprint("vms", __name__)
-
-
-# ── Background job runner ───────────────────────────────────
-
-def run_vm_job(job_id, hostname, ip, vm_id, template, cpu, ram, disk, node,
-               vm_type, acos_version, bridges):
-    JOB_STATUS[job_id] = {"status": "Running", "log": []}
-    VM_PROVISIONS_ACTIVE.inc()
-    bridges_json = json.dumps(bridges)
-
-    if vm_type == "vthunder":
-        script = os.path.join(ROOT_DIR, "python", "workflows", "provision_vthunder.py")
-        JOB_STATUS[job_id]["log"].append(
-            f"[PERIMETER] Using Python provisioner: {script} (vm_type={vm_type}, bridges={bridges}, acos_version={acos_version})\n"
-        )
-    elif vm_type == "linux":
-        script = os.path.join(ROOT_DIR, "python", "workflows", "provision_linux.py")
-        JOB_STATUS[job_id]["log"].append(
-            f"[PERIMETER] Using Python provisioner: {script} (vm_type={vm_type}, bridges={bridges})\n"
-        )
-    elif vm_type == "vyos":
-        script = os.path.join(ROOT_DIR, "python", "workflows", "provision_vyos.py")
-        JOB_STATUS[job_id]["log"].append(
-            f"[PERIMETER] Using Python provisioner: {script} (vm_type={vm_type}, bridges={bridges})\n"
-        )
-    else:
-        script = os.path.join(LINUX_SCRIPT_DIR, "create_vm.sh")
-        JOB_STATUS[job_id]["log"].append(
-            f"[PERIMETER] Using legacy bash script: {script} (vm_type={vm_type})\n"
-        )
-
-    try:
-        if vm_type in ("vthunder", "linux", "vyos"):
-            work_dir = os.path.join(ROOT_DIR, "python")
-            script_arg = f"workflows/provision_{vm_type}.py"
-            cmd = ["python3", script_arg, hostname, ip, str(vm_id), template,
-                   str(cpu), str(ram), str(disk), node, vm_type, acos_version, bridges_json]
-        else:
-            work_dir = None
-            cmd = [script, hostname, ip, str(vm_id), template,
-                   str(cpu), str(ram), str(disk), node, vm_type, acos_version, bridges_json]
-
-        env = os.environ.copy()
-        cid = get_correlation_id()
-        if cid:
-            env["PERIMETER_CORRELATION_ID"] = cid
-
-        proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1, cwd=work_dir, env=env,
-        )
-
-        for line in proc.stdout:
-            JOB_STATUS[job_id]["log"].append(line)
-        try:
-            proc.wait(timeout=SUBPROCESS_TIMEOUT)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            JOB_STATUS[job_id]["log"].append(
-                f"[PERIMETER] ERROR: Process killed after {SUBPROCESS_TIMEOUT}s timeout\n"
-            )
-
-        status = "success" if proc.returncode == 0 else "failed"
-        JOB_STATUS[job_id]["status"] = "Success" if proc.returncode == 0 else "Failed"
-        JOB_STATUS[job_id]["_finished_at"] = time.time()
-        VM_PROVISIONS.labels(vm_type=vm_type, status=status).inc()
-        VM_PROVISIONS_ACTIVE.dec()
-
-    except Exception as e:
-        JOB_STATUS[job_id]["status"] = "Error"
-        JOB_STATUS[job_id]["log"].append(f"[PERIMETER] ERROR in run_vm_job: {e}\n")
-        JOB_STATUS[job_id]["_finished_at"] = time.time()
-        VM_PROVISIONS.labels(vm_type=vm_type, status="error").inc()
-        VM_PROVISIONS_ACTIVE.dec()
 
 
 # ── Helpers ─────────────────────────────────────────────────
@@ -200,58 +118,23 @@ def api_create_vm():
 
     audit_log("vm_create", f"{hostname} (VMID {vm_id_int})", f"type={vm_type} ip={ip} template={template}")
 
-    bridges_json = json.dumps(bridges)
+    if vm_type not in ("vthunder", "linux", "vyos"):
+        return api_error(f"Unknown vm_type '{vm_type}'")
 
-    def generate():
-        yield f"[PERIMETER] Provisioning {vm_type} VM: {hostname} (VMID {vm_id_int})\n"
-        yield f"[PERIMETER] IP: {ip}, Template: {template} (ID {template_id}), NICs: {len(bridges)} ({', '.join(bridges)})\n"
+    # Dispatch Celery task
+    from tasks.workflows import provision_vm
+    task = provision_vm.delay(
+        hostname=hostname, ip=ip, vm_id=vm_id_int, template=template,
+        cpu=cpu or 2, ram=ram or 4096, disk=disk or 32, node=node,
+        vm_type=vm_type, acos_version=acos_version, bridges=bridges,
+        template_id=int(template_id) if template_id else 0,
+    )
 
-        if vm_type == "vthunder":
-            yield f"[PERIMETER] ACOS Version: {acos_version}\n"
-
-        if vm_type in ("vthunder", "linux", "vyos"):
-            work_dir = os.path.join(ROOT_DIR, "python")
-            cmd = ["python3", f"workflows/provision_{vm_type}.py", hostname, ip,
-                   str(vm_id_int), template, str(template_id), str(cpu), str(ram),
-                   str(disk), node, vm_type, acos_version, bridges_json]
-        else:
-            yield f"[PERIMETER] ERROR: Unknown vm_type '{vm_type}'\n"
-            return
-
-        env = os.environ.copy()
-        env["FORCE_COLOR"] = "1"
-        env["ANSIBLE_FORCE_COLOR"] = "1"
-        cid = get_correlation_id()
-        if cid:
-            env["PERIMETER_CORRELATION_ID"] = cid
-
-        try:
-            process = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, bufsize=1, cwd=work_dir, env=env,
-            )
-            for line in process.stdout:
-                yield line
-            try:
-                process.wait(timeout=SUBPROCESS_TIMEOUT)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                yield f"\n[PERIMETER] ✖ Process killed after {SUBPROCESS_TIMEOUT}s timeout\n"
-                return
-
-            if process.returncode == 0:
-                yield f"\n[PERIMETER] ✔ Provisioning completed successfully for {hostname}\n"
-            else:
-                yield f"\n[PERIMETER] ✖ Provisioning failed for {hostname} (exit code {process.returncode})\n"
-        except Exception as e:
-            yield f"[PERIMETER] ERROR: {e}\n"
-
-    return Response(generate(), mimetype='text/plain')
-
-
-@vms_bp.route("/api/vm_status/<job_id>")
-def api_vm_status(job_id):
-    return jsonify(JOB_STATUS.get(job_id, {"status": "NotFound"}))
+    return jsonify({
+        "task_id": task.id,
+        "message": f"Provisioning {vm_type} VM: {hostname} (VMID {vm_id_int})",
+        "stream_url": f"/api/tasks/{task.id}/stream",
+    })
 
 
 @vms_bp.route("/api/vm_health/<vmid>")
@@ -401,34 +284,14 @@ def api_destroy_vm():
 
     audit_log("vm_destroy", f"VMID {vm_id}")
 
-    script = os.path.join(ROOT_DIR, "python", "workflows", "destroy_vm.py")
-    work_dir = os.path.join(ROOT_DIR, "python")
+    from tasks.workflows import destroy_vm as destroy_vm_task
+    task = destroy_vm_task.delay(vm_id=int(vm_id))
 
-    def generate():
-        yield f"[PERIMETER] Destroy sequence initiated for VM_ID {vm_id}\n"
-        env = os.environ.copy()
-        cid = get_correlation_id()
-        if cid:
-            env["PERIMETER_CORRELATION_ID"] = cid
-        process = subprocess.Popen(
-            ["python3", script, str(vm_id)],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1, cwd=work_dir, env=env,
-        )
-        for line in process.stdout:
-            yield line
-        try:
-            process.wait(timeout=SUBPROCESS_TIMEOUT)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            yield f"[PERIMETER] ✖ Process killed after {SUBPROCESS_TIMEOUT}s timeout\n"
-            return
-        if process.returncode == 0:
-            yield f"[PERIMETER] ✔ Destroy completed successfully for VM_ID {vm_id}\n"
-        else:
-            yield f"[PERIMETER] ✖ Destroy failed for VM_ID {vm_id}\n"
-
-    return Response(generate(), mimetype='text/plain')
+    return jsonify({
+        "task_id": task.id,
+        "message": f"Destroy sequence initiated for VM_ID {vm_id}",
+        "stream_url": f"/api/tasks/{task.id}/stream",
+    })
 
 
 @vms_bp.route("/api/rerun_bootstrap", methods=["POST"])
@@ -440,84 +303,55 @@ def api_rerun_bootstrap():
 
     audit_log("vm_rebootstrap", f"VMID {vm_id}")
 
-    def generate():
-        yield f"[PERIMETER] Re-running bootstrap for VMID {vm_id}...\n"
-        try:
-            vm_info = None
-            vm_type = None
-
-            for state_path, vtype in [(TF_LINUX_STATE_PATH, "linux"), (TF_VTHUNDER_STATE_PATH, "vthunder"), (TF_VYOS_STATE_PATH, "vyos")]:
-                if vm_info:
-                    break
-                if not os.path.exists(state_path):
-                    continue
-                with open(state_path, "r") as f:
-                    tf_state = json.load(f)
-                for resource in tf_state.get("resources", []):
-                    if resource.get("type") == "proxmox_virtual_environment_vm":
-                        for instance in resource.get("instances", []):
-                            attrs = instance.get("attributes", {})
-                            if attrs.get("vm_id") == int(vm_id):
-                                vm_info = attrs
-                                vm_type = vtype
-                                break
-                    if vm_info:
+    # Look up VM info from Terraform state (synchronous — fast)
+    vm_info = None
+    vm_type = None
+    for state_path, vtype in [(TF_LINUX_STATE_PATH, "linux"), (TF_VTHUNDER_STATE_PATH, "vthunder"), (TF_VYOS_STATE_PATH, "vyos")]:
+        if vm_info:
+            break
+        if not os.path.exists(state_path):
+            continue
+        with open(state_path, "r") as f:
+            tf_state = json.load(f)
+        for resource in tf_state.get("resources", []):
+            if resource.get("type") == "proxmox_virtual_environment_vm":
+                for instance in resource.get("instances", []):
+                    attrs = instance.get("attributes", {})
+                    if attrs.get("vm_id") == int(vm_id):
+                        vm_info = attrs
+                        vm_type = vtype
                         break
+            if vm_info:
+                break
 
-            if not vm_info:
-                yield f"[PERIMETER] ERROR: VM {vm_id} not found in any Terraform workspace state\n"
-                return
+    if not vm_info:
+        return api_error(f"VM {vm_id} not found in any Terraform workspace state", 404)
 
-            hostname = vm_info.get("name", "unknown")
-            ip = None
-            init_config = vm_info.get("initialization", [])
-            if init_config and len(init_config) > 0:
-                ip_config = init_config[0].get("ip_config", [])
-                if ip_config and len(ip_config) > 0:
-                    ipv4 = ip_config[0].get("ipv4", [])
-                    if ipv4 and len(ipv4) > 0:
-                        ip_addr = ipv4[0].get("address", "")
-                        ip = ip_addr.split("/")[0] if "/" in ip_addr else ip_addr
+    hostname = vm_info.get("name", "unknown")
+    ip = None
+    init_config = vm_info.get("initialization", [])
+    if init_config and len(init_config) > 0:
+        ip_config = init_config[0].get("ip_config", [])
+        if ip_config and len(ip_config) > 0:
+            ipv4 = ip_config[0].get("ipv4", [])
+            if ipv4 and len(ipv4) > 0:
+                ip_addr = ipv4[0].get("address", "")
+                ip = ip_addr.split("/")[0] if "/" in ip_addr else ip_addr
 
-            if not ip or not hostname:
-                yield f"[PERIMETER] ERROR: Could not extract hostname/IP for VMID {vm_id}\n"
-                return
+    if not ip or not hostname:
+        return api_error(f"Could not extract hostname/IP for VMID {vm_id}")
 
-            yield f"[PERIMETER] Found VM: {hostname} ({ip}) type={vm_type}\n"
+    if vm_type != "linux":
+        return api_error(f"Re-bootstrap not supported for {vm_type} VMs")
 
-            if vm_type == "linux":
-                script = os.path.join(ROOT_DIR, "python", "workflows", "bootstrap_linux.py")
-                cmd = ["python3", script, hostname, ip]
-                work_dir = os.path.join(ROOT_DIR, "python")
-            elif vm_type == "vthunder":
-                yield "[PERIMETER] ERROR: vThunder re-bootstrap not yet implemented\n"
-                return
-            else:
-                yield f"[PERIMETER] ERROR: Unknown VM type for VMID {vm_id}\n"
-                return
+    from tasks.workflows import bootstrap_vm
+    task = bootstrap_vm.delay(hostname=hostname, ip=ip)
 
-            bs_env = os.environ.copy()
-            cid = get_correlation_id()
-            if cid:
-                bs_env["PERIMETER_CORRELATION_ID"] = cid
-            proc = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, bufsize=1, cwd=work_dir, env=bs_env,
-            )
-            for line in proc.stdout:
-                yield line
-            try:
-                proc.wait(timeout=SUBPROCESS_TIMEOUT)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                yield f"\n[PERIMETER] ✖ Process killed after {SUBPROCESS_TIMEOUT}s timeout\n"
-                return
-            yield f"\n[PERIMETER] Bootstrap exited with code {proc.returncode}\n"
-
-        except Exception as e:
-            yield f"[PERIMETER] ERROR: {e}\n"
-
-    return Response(generate(), mimetype="text/plain")
+    return jsonify({
+        "task_id": task.id,
+        "message": f"Re-running bootstrap for {hostname} ({ip})",
+        "stream_url": f"/api/tasks/{task.id}/stream",
+    })
 
 
 # ── Inventory promotion ───────────────────────────────────
@@ -570,4 +404,199 @@ def api_inventory_promote():
         "hostname": hostname,
         "from_group": current_group,
         "to_group": target_group,
+    })
+
+
+# ── Fleet Deployments ────────────────────────────────────
+
+@vms_bp.route("/api/fleet/deploy", methods=["POST"])
+def api_fleet_deploy():
+    """Deploy multiple VMs in parallel as a fleet."""
+    import uuid
+    import redis as _redis_mod
+
+    data = request.json or {}
+    fleet_name = data.get("fleet_name", "").strip() or f"fleet-{int(time.time())}"
+    vms = data.get("vms", [])
+
+    if not vms or not isinstance(vms, list):
+        return api_error("vms array is required with at least one VM definition")
+
+    if len(vms) > 20:
+        return api_error("Maximum 20 VMs per fleet")
+
+    # Pre-validate ALL VMs before dispatching any
+    seen_vmids = set()
+    seen_ips = set()
+    seen_hostnames = set()
+
+    for i, vm in enumerate(vms):
+        hostname = vm.get("hostname", "").strip()
+        ip = vm.get("ip", "").strip()
+        vm_id = vm.get("vm_id")
+        template_id = vm.get("template_id")
+
+        if not hostname or not ip or not vm_id:
+            return api_error(f"VM #{i+1}: hostname, ip, and vm_id are required")
+        if not template_id:
+            return api_error(f"VM #{i+1} ({hostname}): template_id is required")
+
+        # Check for duplicates within the fleet
+        if vm_id in seen_vmids:
+            return api_error(f"Duplicate VMID {vm_id} in fleet")
+        seen_vmids.add(vm_id)
+
+        if ip in seen_ips:
+            return api_error(f"Duplicate IP {ip} in fleet")
+        seen_ips.add(ip)
+
+        if hostname in seen_hostnames:
+            return api_error(f"Duplicate hostname {hostname} in fleet")
+        seen_hostnames.add(hostname)
+
+        # Validate each VM's params
+        validation_err = validate_vm_params(vm)
+        if validation_err:
+            return api_error(f"VM #{i+1} ({hostname}): {validation_err}")
+
+        # Check VMID availability
+        available, reason = _check_vmid_available(int(vm_id))
+        if not available:
+            return api_error(f"VM #{i+1} ({hostname}): {reason}")
+
+    # All validation passed — dispatch fleet orchestrator task
+    # Same-type VMs run sequentially (Terraform state lock), different types run in parallel
+    fleet_id = f"fleet-{uuid.uuid4().hex[:12]}"
+
+    from tasks.workflows import run_fleet
+    fleet_task = run_fleet.delay(fleet_id=fleet_id, vms=vms)
+
+    # Build task list — individual task IDs will be set by the orchestrator
+    # For now, use fleet_id + index as placeholder task IDs
+    tasks = []
+    for i, vm in enumerate(vms):
+        task_id = f"{fleet_id}-vm-{i}"
+        tasks.append({
+            "hostname": vm["hostname"].strip(),
+            "task_id": task_id,
+            "stream_url": f"/api/tasks/{task_id}/stream",
+        })
+
+    # Store fleet metadata in Redis
+    r = _redis_mod.Redis.from_url(cfg.REDIS_URL)
+    fleet_data = {
+        "fleet_name": fleet_name,
+        "total": str(len(tasks)),
+        "created_at": str(time.time()),
+    }
+    for i, t in enumerate(tasks):
+        fleet_data[f"task_{i}_id"] = t["task_id"]
+        fleet_data[f"task_{i}_hostname"] = t["hostname"]
+    r.hset(f"perimeter:fleet:{fleet_id}", mapping=fleet_data)
+    r.expire(f"perimeter:fleet:{fleet_id}", 86400)  # 24h TTL
+    r.close()
+
+    audit_log("fleet_deploy", fleet_name, f"{len(tasks)} VMs")
+
+    return jsonify({
+        "fleet_id": fleet_id,
+        "fleet_name": fleet_name,
+        "tasks": tasks,
+    })
+
+
+@vms_bp.route("/api/fleet/<fleet_id>")
+def api_fleet_status(fleet_id):
+    """Get aggregate status of a fleet deployment."""
+    import redis as _redis_mod
+
+    r = _redis_mod.Redis.from_url(cfg.REDIS_URL)
+    fleet_raw = r.hgetall(f"perimeter:fleet:{fleet_id}")
+
+    if not fleet_raw:
+        r.close()
+        return api_error("Fleet not found", 404)
+
+    fleet = {k.decode(): v.decode() for k, v in fleet_raw.items()}
+    total = int(fleet.get("total", 0))
+
+    vms = []
+    completed = 0
+    failed = 0
+    running = 0
+    queued = 0
+
+    for i in range(total):
+        task_id = fleet.get(f"task_{i}_id", "")
+        hostname = fleet.get(f"task_{i}_hostname", "")
+
+        # Get task status from Redis job metadata
+        job_meta = r.hgetall(f"perimeter:job:{task_id}")
+        if job_meta:
+            status = job_meta.get(b"status", b"queued").decode()
+        else:
+            status = "queued"
+
+        if status == "success":
+            completed += 1
+        elif status == "failed" or status == "error":
+            failed += 1
+        elif status == "running":
+            running += 1
+        else:
+            queued += 1
+
+        vms.append({
+            "hostname": hostname,
+            "task_id": task_id,
+            "status": status,
+            "stream_url": f"/api/tasks/{task_id}/stream",
+        })
+
+    r.close()
+
+    return jsonify({
+        "fleet_id": fleet_id,
+        "fleet_name": fleet.get("fleet_name", ""),
+        "total": total,
+        "completed": completed,
+        "failed": failed,
+        "running": running,
+        "queued": queued,
+        "vms": vms,
+    })
+
+
+@vms_bp.route("/api/fleet/<fleet_id>/cancel", methods=["POST"])
+def api_fleet_cancel(fleet_id):
+    """Cancel all pending/running tasks in a fleet."""
+    import redis as _redis_mod
+    from celery_app import celery
+
+    r = _redis_mod.Redis.from_url(cfg.REDIS_URL)
+    fleet_raw = r.hgetall(f"perimeter:fleet:{fleet_id}")
+
+    if not fleet_raw:
+        r.close()
+        return api_error("Fleet not found", 404)
+
+    fleet = {k.decode(): v.decode() for k, v in fleet_raw.items()}
+    total = int(fleet.get("total", 0))
+    cancelled = 0
+
+    for i in range(total):
+        task_id = fleet.get(f"task_{i}_id", "")
+        job_meta = r.hgetall(f"perimeter:job:{task_id}")
+        status = job_meta.get(b"status", b"queued").decode() if job_meta else "queued"
+
+        if status in ("queued", "running"):
+            celery.control.revoke(task_id, terminate=True, signal="SIGTERM")
+            r.hset(f"perimeter:job:{task_id}", "status", "cancelled")
+            cancelled += 1
+
+    r.close()
+
+    return jsonify({
+        "fleet_id": fleet_id,
+        "cancelled": cancelled,
     })

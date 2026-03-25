@@ -25,7 +25,7 @@ from utils.sops_env import load_env
 # --- Config ---
 _env = load_env()
 PUBKEY_PATH = Path.home() / ".ssh" / "ansible_vthunder.pub"
-QBRANCH_IP = _env.get("QBRANCH_IP", "10.1.55.15")
+PERIMETER_IP = _env.get("PERIMETER_IP", _env.get("PERIMETER_IP", ""))
 KEY_SERVER_PORT = 8099
 ADMIN_USER = _env.get("VTH_DEFAULT_ADMIN_USER", "admin")
 ADMIN_PASS = _env.get("VTH_ADMIN_PASS", "")
@@ -104,7 +104,7 @@ def main():
         print(f"ERROR: Pubkey not found at {PUBKEY_PATH}")
         return 1
 
-    file_url = f"http://{QBRANCH_IP}:{KEY_SERVER_PORT}/{PUBKEY_PATH.name}"
+    file_url = f"http://{PERIMETER_IP}:{KEY_SERVER_PORT}/{PUBKEY_PATH.name}"
 
     print(f"Pubkey:     {PUBKEY_PATH}")
     print(f"Key URL:    {file_url}")

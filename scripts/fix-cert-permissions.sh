@@ -1,12 +1,9 @@
 #!/bin/bash
 # Certbot deploy hook — fix ownership after renewal
-# Ensures the Perimeter service (mklouda) can read cert/key files
-#
-# Install as deploy hook:
-#   ln -sf /home/mklouda/automation-demo/scripts/fix-cert-permissions.sh \
-#          /home/mklouda/automation-demo/certificates/klouda.work/renewal-hooks/deploy/fix-permissions.sh
+# Ensures the Perimeter service user can read cert/key files
 
-CERT_DIR="/home/mklouda/automation-demo/certificates"
-OWNER="mklouda:mklouda"
+INSTALL_DIR="${PERIMETER_ROOT:-/opt/perimeter}"
+CERT_DIR="${INSTALL_DIR}/certificates"
+OWNER="${PERIMETER_USER:-perimeter}:${PERIMETER_USER:-perimeter}"
 
 chown -R "$OWNER" "$CERT_DIR"

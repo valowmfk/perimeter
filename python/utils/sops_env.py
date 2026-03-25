@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict
 
-ENCRYPTED_ENV = str(Path(__file__).resolve().parent.parent.parent / "secrets" / "automation-demo.enc.env")
+ENCRYPTED_ENV = str(Path(__file__).resolve().parent.parent.parent / "secrets" / "perimeter.enc.env")
 
 # Resolve sops binary: prefer explicit path (systemd doesn't have ~/.local/bin in PATH)
 _SOPS_CANDIDATES = [

@@ -138,7 +138,7 @@ When a feature is disabled:
 
 All sensitive configuration is encrypted with [SOPS](https://github.com/getsops/sops) + [Age](https://github.com/FiloSottile/age). The installer handles key generation and encryption automatically.
 
-Secrets are stored in `secrets/automation-demo.enc.env` and decrypted at runtime by the application.
+Secrets are stored in `secrets/perimeter.enc.env` and decrypted at runtime by the application.
 
 ### Subnets
 
@@ -214,7 +214,7 @@ sudo systemctl restart perimeter
 ```bash
 # Run locally (development mode)
 cd /opt/perimeter
-python3 qbranch_app.py
+python3 perimeter_app.py
 
 # Run tests
 pytest tests/

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 # ──────────────────────────────────────────────
-# Ensure automation-demo/python is on sys.path
+# Ensure python/ is on sys.path
 # ──────────────────────────────────────────────
 THIS_FILE = Path(__file__).resolve()
 PYTHON_DIR = THIS_FILE.parent.parent
@@ -38,7 +38,7 @@ COMPONENT = "VTH-PROV"
 # Workspace-specific Terraform directory (no more -target!)
 TF_DIR = ROOT_DIR / "terraform" / "vthunder_vm"
 TFVARS_PATH = TF_DIR / "perimeter-vthunder.auto.tfvars.json"
-DEFAULT_ENV_FILE = str(ROOT_DIR / "secrets" / "automation-demo.enc.env")
+DEFAULT_ENV_FILE = str(ROOT_DIR / "secrets" / "perimeter.enc.env")
 
 DEFAULT_DATASTORE = "zfs-pool"
 DEFAULT_DHCP_PREFIX = "10.1.55"

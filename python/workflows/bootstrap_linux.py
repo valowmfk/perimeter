@@ -10,7 +10,7 @@ import socket
 from pathlib import Path
 
 # ──────────────────────────────────────────────
-# Ensure automation-demo/python is on sys.path
+# Ensure python/ is on sys.path
 # ──────────────────────────────────────────────
 THIS_FILE = Path(__file__).resolve()
 PYTHON_DIR = THIS_FILE.parent.parent
@@ -30,7 +30,7 @@ COMPONENT = "LINUX-BOOT"
 INVENTORY_YML = ROOT_DIR / "inventories" / "inventory.yml"
 BOOTSTRAP_PLAYBOOK = ROOT_DIR / "playbooks" / "01-linux-bootstrap.yml"
 ANSIBLE_CFG = ROOT_DIR / "ansible.cfg"
-SSH_KEY = Path(f"/home/{os.getenv('USER', 'mklouda')}/.ssh/ansible_qbranch")
+SSH_KEY = Path(os.getenv("PERIMETER_SSH_KEY", os.path.expanduser("~/.ssh/ansible_perimeter")))
 
 DEFAULT_SSH_TIMEOUT = 600
 

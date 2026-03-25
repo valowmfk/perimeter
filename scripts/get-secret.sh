@@ -4,7 +4,8 @@
 
 set -euo pipefail
 
-ENCRYPTED_ENV="/home/mklouda/automation-demo/secrets/automation-demo.enc.env"
+INSTALL_DIR="${PERIMETER_ROOT:-/opt/perimeter}"
+ENCRYPTED_ENV="${INSTALL_DIR}/secrets/perimeter.enc.env"
 
 KEY="${1:?Usage: get-secret.sh KEY_NAME}"
 

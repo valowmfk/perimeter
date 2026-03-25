@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 # ──────────────────────────────────────────────
-# Ensure automation-demo/python is on sys.path
+# Ensure python/ is on sys.path
 # ──────────────────────────────────────────────
 THIS_FILE = Path(__file__).resolve()
 PYTHON_DIR = THIS_FILE.parent.parent

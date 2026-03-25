@@ -25,10 +25,10 @@ COMPONENT = "DNS"
 from config import cfg
 DNS_DOMAIN = cfg.DNS_DOMAIN
 
-PIHOLE_API_URL = os.getenv("PIHOLE_API_URL", "http://10.1.55.9")
+PIHOLE_API_URL = os.getenv("PIHOLE_API_URL", cfg.PIHOLE_URL)
 PIHOLE_API_PASSWORD = os.getenv("PIHOLE_API_PASSWORD", "")
 
-SSH_KEY = os.getenv("PERIMETER_SSH_KEY", str(Path.home() / ".ssh" / "ansible_qbranch"))
+SSH_KEY = os.getenv("PERIMETER_SSH_KEY", str(Path.home() / ".ssh" / "ansible_perimeter"))
 
 NEBULA_SYNC = {
     "host": os.getenv("NEBULA_SYNC_HOST", ""),

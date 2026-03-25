@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 # ──────────────────────────────────────────────
-# Ensure automation-demo/python is on sys.path
+# Ensure python/ is on sys.path
 # ──────────────────────────────────────────────
 THIS_FILE = Path(__file__).resolve()
 PYTHON_DIR = THIS_FILE.parent.parent
@@ -37,7 +37,7 @@ COMPONENT = "LINUX-PROV"
 # Workspace-specific Terraform directory (no more -target!)
 TF_DIR = ROOT_DIR / "terraform" / "linux_vm"
 TFVARS_PATH = TF_DIR / "perimeter-linux.auto.tfvars.json"
-DEFAULT_ENV_FILE = str(ROOT_DIR / "secrets" / "automation-demo.enc.env")
+DEFAULT_ENV_FILE = str(ROOT_DIR / "secrets" / "perimeter.enc.env")
 
 # Fallback defaults
 DEFAULT_DATASTORE = "zfs-pool"
@@ -107,7 +107,7 @@ def provision_linux_vm(
         qlog_error(COMPONENT, f"Failed to load environment from {env_file} — is SOPS configured?")
         return 1
 
-    ssh_user = env.get("LINUX_SSH_USER", "mklouda")
+    ssh_user = env.get("LINUX_SSH_USER", os.getenv("USER", "perimeter"))
     ssh_keys = []
     i = 1
     while True:

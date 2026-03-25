@@ -50,7 +50,7 @@ class TestParseEnv:
         assert _parse_env("=value") == {}
 
     def test_mixed_real_world(self):
-        text = """# Q Branch secrets
+        text = """# Perimeter secrets
 PIHOLE_API_URL=http://10.1.55.9
 PIHOLE_API_PASSWORD="s3cret"
 VTH_ADMIN_PASS='hunter2'

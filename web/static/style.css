@@ -224,18 +224,11 @@ body.light .log-info {
     font-family: 'Open Sans', sans-serif;
 }
 
-/* Perimeter theme header styling */
-body.theme-perimeter .unified-header {
+/* Header styling */
+.unified-header {
     background: radial-gradient(circle at top left, #1f2937 0, #020617 50%, #000000 100%);
     border-bottom: 2px solid #00e0ff;
     color: #e5f6ff;
-}
-
-/* A10 theme header styling */
-body.theme-a10 .unified-header {
-    background-color: #1C2331;
-    border-bottom: 2px solid #00A0DF;
-    color: #E1E5EA;
 }
 
 .unified-header-left {
@@ -247,10 +240,6 @@ body.theme-a10 .unified-header {
 .unified-logo {
     height: 50px;
     width: auto;
-}
-
-/* Perimeter logo glow */
-body.theme-perimeter .unified-logo {
     filter: drop-shadow(0 0 8px rgba(0, 224, 255, 0.6));
 }
 
@@ -264,19 +253,7 @@ body.theme-perimeter .unified-logo {
     font-weight: 700;
     letter-spacing: 2px;
     text-transform: uppercase;
-}
-
-/* Perimeter title color */
-body.theme-perimeter .unified-title {
     color: #e5f6ff;
-}
-
-/* A10 title color */
-body.theme-a10 .unified-title {
-    color: #00A0DF;
-    font-size: 24px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
 }
 
 .unified-subtitle {
@@ -286,79 +263,28 @@ body.theme-a10 .unified-title {
     opacity: 0.85;
 }
 
-/* A10 subtitle styling */
-body.theme-a10 .unified-subtitle {
-    font-size: 12px;
-    opacity: 0.7;
-}
-
 .unified-header-right {
     display: flex;
     align-items: center;
     gap: 16px;
 }
+
 .unified-header-tag {
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.18em;
     opacity: 0.8;
     white-space: nowrap;
-}
-
-/* Perimeter tag color */
-body.theme-perimeter .unified-header-tag {
     color: #7df9ff;
 }
 
-/* A10 tag color */
-body.theme-a10 .unified-header-tag {
-    color: #00A0DF;
-}
-
-/* Theme selector dropdown */
-.theme-selector {
-    padding: 8px 14px;
-    background-color: #005CB9;
-    color: white;
-    font-weight: 600;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all 0.2s ease;
-}
-
-.theme-selector:hover {
-    background-color: #0077E6;
-    box-shadow: 0 0 6px #00e5ff;
-    transform: translateY(-1px);
-}
-
-/* Perimeter theme selector */
-body.theme-perimeter .theme-selector {
-    background: rgba(15,23,42,0.85);
-    color: #cbd5e1;
-    border: 1px solid rgba(71,85,105,0.6);
-}
-
-body.theme-perimeter .theme-selector:hover {
-    background: rgba(30,41,59,1);
-    border-color: rgba(100,116,139,0.8);
-    box-shadow: none;
-}
-
-/* Content wrapper positioning */
+/* Content wrapper positioning (header + Proxmox strip) */
 .unified-content {
-    margin-top: 90px;
-}
-
-/* Perimeter content with Proxmox strip */
-body.theme-perimeter .unified-content {
-    margin-top: 130px; /* 90px header + 40px strip */
+    margin-top: 130px;
 }
 
 /* ============================================================
-   Q BRANCH THEME (create_vm.html)
+   PERIMETER THEME
    ============================================================ */
 
 .q-header {
@@ -514,7 +440,7 @@ body.theme-perimeter .unified-content {
     opacity:0.8;
 }
 
-/* Main Q-Branch container */
+/* Main Perimeter container */
 .q-container {
     margin-top: 130px;       /* header (90) + strip (28) + air */
     padding-top: 10px;
@@ -608,7 +534,7 @@ body.theme-perimeter .unified-content {
     flex:1 1 auto;
 }
 
-/* Inputs in Q-Branch panel */
+/* Inputs in Perimeter panel */
 .q-input {
     width:100%;
     padding:8px;
@@ -1054,11 +980,12 @@ body.light .q-table th {
 
 .q-provision-drawer.open {
     max-height:none;     /* no max limit */
-    overflow:visible;
+    overflow-y:auto;
     opacity:1;
-    flex:1;              /* when open, fill available space */
+    flex:1 1 auto;       /* grow to fill but don't push others off-screen */
     display:flex;
     flex-direction:column;
+    min-height:200px;
 }
 
 .q-provision-content {
@@ -2096,4 +2023,207 @@ body.light .q-table th {
     cursor: not-allowed;
     pointer-events: none;
     background: #6b2121;
+}
+
+/* ── Fleet Deployment Drawer ── */
+
+/* Custom Fleet Flyout Overlay */
+.q-fleet-flyout-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.75);
+    z-index: var(--z-modal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.q-fleet-flyout {
+    background: #0c1624;
+    border: 1px solid #009ec7;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 1100px;
+    height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    overflow: hidden;
+}
+.q-fleet-flyout-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(0,158,199,0.2);
+    font-weight: 600;
+    color: #e5f6ff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+.q-fleet-flyout-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 18px;
+}
+
+.q-fleet-vm-row {
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    overflow: hidden;
+}
+
+/* Fleet custom mode cards */
+.q-fleet-card {
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    background: rgba(15, 23, 42, 0.4);
+}
+
+.q-fleet-card-header {
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    background: rgba(15, 23, 42, 0.6);
+    border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+    font-size: 11px;
+}
+
+.q-fleet-card-title {
+    font-weight: 600;
+    color: #06b6d4;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 10px;
+}
+
+.q-fleet-card-body {
+    padding: 8px 10px;
+}
+
+.q-fleet-card-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+}
+
+.q-fleet-card-row:last-child {
+    margin-bottom: 0;
+}
+
+.q-fleet-card-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 10px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    flex: 1;
+    min-width: 80px;
+}
+
+.q-fleet-card-row label .q-input {
+    font-size: 12px;
+    padding: 4px 6px;
+    margin-bottom: 0;
+}
+
+/* Fleet status VM rows */
+.q-fleet-vm-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    font-size: 12px;
+}
+
+.q-fleet-vm-header .q-badge {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.q-fleet-vm-header:hover {
+    background: rgba(15, 23, 42, 0.6);
+}
+
+.q-fleet-vm-name {
+    font-weight: 600;
+    color: #e5f6ff;
+    min-width: 120px;
+}
+
+.q-fleet-vm-ip {
+    font-family: "JetBrains Mono", monospace;
+    color: #94a3b8;
+    font-size: 11px;
+    min-width: 100px;
+}
+
+.q-fleet-cancel-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid rgba(239, 68, 68, 0.5);
+    border-radius: 4px;
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    font-size: 12px;
+    line-height: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.q-fleet-cancel-btn:hover {
+    background: rgba(239, 68, 68, 0.35);
+    border-color: rgba(239, 68, 68, 0.8);
+}
+
+.q-fleet-vm-log {
+    border-top: 1px solid rgba(71, 85, 105, 0.3);
+    background: #020617;
+}
+
+.q-fleet-log-output {
+    margin: 0;
+    padding: 8px 10px;
+    max-height: 200px;
+    overflow-y: auto;
+    color: #e5f2ff;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.q-fleet-progress-bar {
+    height: 4px;
+    background: rgba(6, 182, 212, 0.2);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.q-fleet-progress-fill {
+    height: 100%;
+    background: #06b6d4;
+    transition: width 0.3s ease;
+}
+
+.q-badge-orange {
+    background: rgba(251, 146, 60, 0.18);
+    color: #fb923c;
+    border: 1px solid rgba(251, 146, 60, 0.5);
 }
