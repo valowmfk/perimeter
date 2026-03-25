@@ -2,7 +2,6 @@
 // Wires up all modules, event delegation, and accordion drawer system.
 
 import { showToast } from './utils/dom.js';
-import { switchTheme, initTheme } from './modules/themes.js';
 import { toggleDnsFields, createDnsRecord } from './modules/dns.js';
 import { tryLoadIpam, loadIpamData, refreshIpam, validateIpAddress, loadIpamSubnets, onIpamSubnetChange } from './modules/ipam.js';
 import { loadPlaybook, runPlaybook, refreshPlaybooks, refreshInventories,
@@ -10,7 +9,13 @@ import { loadPlaybook, runPlaybook, refreshPlaybooks, refreshInventories,
 import { loadBridges, collectBridges, updateNicDropdowns, generateHostname,
          onVmTypeChange, startDeploy, pollStatus, loadVmList, rerunBootstrap,
          toggleVmProtect, destroyVm, promoteVm, loadVmIds, validateVmId,
-         loadSubnets, onSubnetChange } from './modules/vms.js';
+         loadSubnets, onSubnetChange,
+         openFleetDrawer, resetFleetDrawer, fleetSwitchMode, fleetAddRow,
+         fleetRemoveRow, fleetDuplicateRow, fleetUpdatePreview, deployFleet,
+         fleetPollStatus, fleetCancel, fleetCancelTask,
+         toggleFleetStatus, fleetToggleLog, fleetVmTypeChange,
+         openFleetFlyout, closeFleetFlyout,
+         filterTemplatesByType, cacheTemplateOptions } from './modules/vms.js';
 import { loadCertStats, toggleCertFlyout, toggleCertDomainExpand,
          openCertViewModal, certViewChangeFile, copyCertToClipboard,
          closeCertViewModal, downloadCert, deleteCert, updateCertPreview,
@@ -36,9 +41,11 @@ function toggleAccordionDrawer(drawerId) {
     if (!drawer) return;
 
     const button = drawer.previousElementSibling;
+    const container = drawer.closest('.q-panel-controls');
 
     const accordionDrawers = [
         { id: 'vmProvisionDrawer',          button: document.querySelector('[data-action="toggle-vm-provision"]') },
+        { id: 'fleetDrawer',               button: document.querySelector('[data-action="toggle-fleet"]') },
         { id: 'ansibleOrchestrationDrawer', button: document.querySelector('[data-action="toggle-ansible"]') },
         { id: 'certificateManagementDrawer',button: document.querySelector('[data-action="toggle-certificates"]') },
         { id: 'dnsManagementDrawer',        button: document.querySelector('[data-action="toggle-dns"]') },
@@ -46,34 +53,29 @@ function toggleAccordionDrawer(drawerId) {
         { id: 'vipManagerDrawer',            button: document.querySelector('[data-action="toggle-vip-manager"]') }
     ];
 
+    // CLOSE: just remove open class
     if (drawer.classList.contains('open')) {
         drawer.classList.remove('open');
-        if (button) {
-            button.setAttribute('aria-expanded', 'false');
-            button.style.order = '';
-            drawer.style.order = '';
-        }
+        if (button) button.setAttribute('aria-expanded', 'false');
         return;
     }
 
+    // Close all other drawers
     accordionDrawers.forEach(item => {
         const d = document.getElementById(item.id);
         if (d && d !== drawer) {
             d.classList.remove('open');
-            if (item.button) {
-                item.button.setAttribute('aria-expanded', 'false');
-                item.button.style.order = '';
-                d.style.order = '';
-            }
+            if (item.button) item.button.setAttribute('aria-expanded', 'false');
         }
     });
 
-    drawer.classList.add('open');
-    if (button) {
-        button.setAttribute('aria-expanded', 'true');
-        button.style.order = '999';
-        drawer.style.order = '1000';
+    // OPEN: move button + drawer to top of container, then open
+    if (container && button) {
+        container.prepend(drawer);
+        container.prepend(button);
     }
+    drawer.classList.add('open');
+    if (button) button.setAttribute('aria-expanded', 'true');
 }
 
 /* ============================
@@ -88,7 +90,7 @@ function toggleTelemetry() {
     if (btn) btn.setAttribute('aria-expanded', drawer.classList.contains('open'));
 }
 
-function toggleQBranchAssets() {
+function toggleAssets() {
     const drawer = document.getElementById('qAssetsDrawer');
     if (!drawer) return;
     drawer.classList.toggle('open');
@@ -123,7 +125,7 @@ const ACTION_HANDLERS = {
 
     // Simple drawers
     'toggle-telemetry':      toggleTelemetry,
-    'toggle-assets':         toggleQBranchAssets,
+    'toggle-assets':         toggleAssets,
     'toggle-vip-manager':    () => toggleAccordionDrawer('vipManagerDrawer'),
     'toggle-proxmox-flyout': toggleProxmoxFlyout,
 
@@ -168,6 +170,21 @@ const ACTION_HANDLERS = {
     'vip-destroy-cancel':    cancelVipDestroy,
     'vip-destroy-confirm':   confirmVipDestroy,
 
+    // Fleet
+    'toggle-fleet':          () => { toggleAccordionDrawer('fleetDrawer'); openFleetDrawer(); },
+    'fleet-mode-quick':      () => fleetSwitchMode('quick'),
+    'fleet-mode-custom':     () => fleetSwitchMode('custom'),
+    'fleet-add-row':         fleetAddRow,
+    'fleet-remove-row':      (el) => fleetRemoveRow(el),
+    'fleet-duplicate-row':   (el) => fleetDuplicateRow(el),
+    'fleet-deploy':          deployFleet,
+    'fleet-cancel-all':      () => fleetCancel(),
+    'fleet-cancel-task':     (el) => fleetCancelTask(el.dataset.taskId),
+    'fleet-reset':           resetFleetDrawer,
+    'fleet-close-flyout':    closeFleetFlyout,
+    'toggle-fleet-status':   toggleFleetStatus,
+    'fleet-toggle-log':      (el) => fleetToggleLog(el.dataset.taskId),
+
     // Buttons
     'generate-hostname':     generateHostname,
     'start-deploy':          startDeploy,
@@ -187,6 +204,9 @@ document.addEventListener('click', function(e) {
         // Close flyouts on outside click
         closeCertFlyoutOnOutsideClick(e);
         closeProxmoxFlyoutOnOutsideClick(e);
+        // Close fleet flyout on overlay click
+        const fleetOverlay = document.getElementById('fleetFlyoutOverlay');
+        if (fleetOverlay && e.target === fleetOverlay) closeFleetFlyout();
         return;
     }
 
@@ -242,10 +262,6 @@ function closeCertFlyoutOnOutsideClick(e) {
    ============================ */
 
 function bindEvents() {
-    // Theme selector
-    const themeSelector = document.getElementById('themeSelector');
-    if (themeSelector) themeSelector.addEventListener('change', switchTheme);
-
     // VM type
     const vmType = document.getElementById('vm_type');
     if (vmType) vmType.addEventListener('change', onVmTypeChange);
@@ -318,6 +334,32 @@ function bindEvents() {
     const certViewFileSelect = document.getElementById('certViewFileSelect');
     if (certViewFileSelect) certViewFileSelect.addEventListener('change', certViewChangeFile);
 
+    // Fleet quick-mode preview updates
+    ['fleetQuickCount', 'fleetQuickHostname', 'fleetQuickStartIp',
+     'fleetQuickStartVmid', 'fleetQuickCpu', 'fleetQuickRam',
+     'fleetQuickDisk', 'fleetQuickSubnet'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', fleetUpdatePreview);
+        if (el) el.addEventListener('change', fleetUpdatePreview);
+    });
+
+    // Fleet VM type change — filter templates + toggle resource fields (Quick Fleet)
+    const fleetVmTypeSel = document.getElementById('fleetQuickVmType');
+    if (fleetVmTypeSel) fleetVmTypeSel.addEventListener('change', fleetVmTypeChange);
+
+    // Fleet custom card VM type change — filter templates per card
+    document.addEventListener('fleet-type-change', function(e) {
+        const card = e.target.closest('.q-fleet-card');
+        if (!card) return;
+        const vmType = card.querySelector('[data-field="vm_type"]')?.value || 'linux';
+        const tplSel = card.querySelector('[data-field="template"]');
+        const resourceRow = card.querySelector('.q-fleet-resource-fields');
+        filterTemplatesByType(tplSel, vmType);
+        if (resourceRow) {
+            resourceRow.style.display = (vmType === 'vthunder' || vmType === 'vyos') ? 'none' : 'flex';
+        }
+    });
+
     // DNS record type
     const dnsRecordType = document.getElementById('dnsRecordType');
     if (dnsRecordType) dnsRecordType.addEventListener('change', toggleDnsFields);
@@ -325,6 +367,15 @@ function bindEvents() {
     // Prevent clicks inside cert modal from closing it (overlay has close action)
     const certModal = document.querySelector('.q-cert-modal');
     if (certModal) certModal.addEventListener('click', e => e.stopPropagation());
+
+    // Fleet flyout: Escape to close
+    document.addEventListener('keydown', function(e) {
+        if (e.key !== 'Escape') return;
+        const fleetOverlay = document.getElementById('fleetFlyoutOverlay');
+        if (fleetOverlay && fleetOverlay.style.display !== 'none') {
+            closeFleetFlyout();
+        }
+    });
 
     // Cert view modal: Escape to close + focus trap
     document.addEventListener('keydown', function(e) {
@@ -357,7 +408,7 @@ function bindEvents() {
    ============================ */
 
 document.addEventListener('DOMContentLoaded', () => {
-    initTheme();
+    cacheTemplateOptions();  // Capture full unfiltered template list before any filtering
     bindEvents();
     onVmTypeChange();
 

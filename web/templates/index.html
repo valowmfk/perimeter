@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Perimeter · Automation Platform</title>
-    <link rel="stylesheet" href="/static/style.css?v=20260323b">
+    <link rel="stylesheet" href="/static/style.css?v=20260325e">
     <link rel="icon" type="image/svg+xml" href="/static/assets/perimeter/perimeter-logo.svg">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/assets/perimeter/perimeter-favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/static/assets/perimeter/perimeter-favicon-16x16.png">
@@ -18,7 +18,7 @@
     {% endif %}
 </head>
 
-<body class="dark theme-perimeter">
+<body class="dark" data-pm-node="{{ pm_node }}">
 
 <a href="#mainContent" class="q-skip-link">Skip to main content</a>
 
@@ -38,6 +38,8 @@
             <div class="q-panel q-panel-drawer-left">
                 <div class="q-panel-controls">
                     {% include 'drawers/_vm_provision.html' %}
+
+                    {% include 'drawers/_fleet.html' %}
 
                     {% if features.ansible %}
                     {% include 'drawers/_ansible.html' %}
@@ -71,8 +73,7 @@
 </main>
 
 <!-- JavaScript -->
-<script>window.PERIMETER_CONFIG = { pmNode: "{{ pm_node }}" };</script>
-<script type="module" src="/static/js/app.js?v=20260323b"></script>
+<script type="module" src="/static/js/app.js?v=20260325e"></script>
 
 
 </body>

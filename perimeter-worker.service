@@ -1,0 +1,35 @@
+[Unit]
+Description=Perimeter Celery Worker
+After=redis.service network-online.target
+Wants=redis.service
+
+[Service]
+Type=simple
+User=mklouda
+Group=mklouda
+
+ExecStart=/usr/local/bin/celery -A celery_app worker --loglevel=info --concurrency=4
+WorkingDirectory=/home/mklouda/automation-demo/python
+
+Environment=SOPS_AGE_KEY_FILE=/home/mklouda/.config/sops/age/keys.txt
+Environment=PERIMETER_ROOT=/home/mklouda/automation-demo
+Environment=NEBULA_SYNC_HOST=10.1.55.9
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=perimeter-worker
+
+KillSignal=SIGTERM
+TimeoutStopSec=300
+
+Restart=on-failure
+RestartSec=5
+
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/home/mklouda/automation-demo
+ReadWritePaths=/home/mklouda/.ssh
+
+[Install]
+WantedBy=multi-user.target

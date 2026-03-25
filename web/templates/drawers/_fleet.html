@@ -1,0 +1,186 @@
+                    <!-- FLEET DEPLOYMENT DRAWER -->
+                    <button type="button"
+                            class="q-telemetry-toggle"
+                            data-action="toggle-fleet"
+                            aria-expanded="false"
+                            aria-controls="fleetDrawer">
+                        <span class="q-drawer-label"><img src="/static/assets/icon-terraform.svg" alt="" class="q-drawer-icon"> Fleet Deployment</span>
+                        <span id="fleetStatusBadge" class="q-mission-timer">Ready</span>
+                    </button>
+
+                    <div id="fleetDrawer" class="q-telemetry-drawer q-provision-drawer">
+                        <div class="q-provision-content" style="flex-direction:column; padding: 12px;">
+                            <div class="q-panel">
+                                <!-- Mode Toggle -->
+                                <div style="display:flex; gap:0; margin-bottom:16px; border:1px solid #334155; border-radius:6px; overflow:hidden;">
+                                    <button type="button" class="q-button" id="fleetTabQuick" data-action="fleet-mode-quick"
+                                            style="flex:1; border-radius:0; border:none; background:#06b6d4; color:#0c1624; font-weight:700;">Quick Fleet</button>
+                                    <button type="button" class="q-button" id="fleetTabCustom" data-action="fleet-mode-custom"
+                                            style="flex:1; border-radius:0; border:none; background:transparent; color:#94a3b8;">Custom Fleet</button>
+                                </div>
+
+                                <!-- Fleet Name (Quick Fleet only) -->
+                                <div id="fleetQuickNameRow" style="margin-bottom:12px;">
+                                    <label style="font-size:12px; color:#94a3b8;">Fleet Name</label>
+                                    <input type="text" id="fleetName" class="q-input" style="width:100%;" placeholder="e.g. web-cluster-prod">
+                                </div>
+
+                                <!-- ── Quick Fleet Mode ── -->
+                                <div id="fleetQuickMode">
+                                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                                        <div>
+                                            <label style="font-size:12px; color:#94a3b8;">Workload Type</label>
+                                            <select id="fleetQuickVmType" class="q-input" style="width:100%;">
+                                                <option value="linux">Linux VM</option>
+                                                <option value="vthunder">A10 vThunder</option>
+                                                <option value="vyos">VyOS Router</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label style="font-size:12px; color:#94a3b8;">Template</label>
+                                            <select id="fleetQuickTemplate" class="q-input" style="width:100%;">
+                                                <option value="">-- Select Template --</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:8px;">
+                                        <div>
+                                            <label style="font-size:12px; color:#94a3b8;">Count</label>
+                                            <input type="number" id="fleetQuickCount" class="q-input" style="width:100%;" min="1" max="20" value="3">
+                                        </div>
+                                        <div>
+                                            <label style="font-size:12px; color:#94a3b8;">Subnet</label>
+                                            <select id="fleetQuickSubnet" class="q-input" style="width:100%;"></select>
+                                        </div>
+                                        <div>
+                                            <label style="font-size:12px; color:#94a3b8;">Bridge</label>
+                                            <select id="fleetQuickBridge" class="q-input" style="width:100%;"></select>
+                                        </div>
+                                    </div>
+
+                                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:8px;">
+                                        <div>
+                                            <label style="font-size:12px; color:#94a3b8;">Base Hostname</label>
+                                            <input type="text" id="fleetQuickHostname" class="q-input" style="width:100%;" placeholder="e.g. web" value="web">
+                                        </div>
+                                        <div>
+                                            <label style="font-size:12px; color:#94a3b8;">Start IP (last octet)</label>
+                                            <input type="number" id="fleetQuickStartIp" class="q-input" style="width:100%;" min="1" max="254" value="100">
+                                        </div>
+                                        <div>
+                                            <label style="font-size:12px; color:#94a3b8;">Start VMID</label>
+                                            <input type="number" id="fleetQuickStartVmid" class="q-input" style="width:100%;" min="100" max="9999" value="8000">
+                                        </div>
+                                    </div>
+
+                                    <!-- Resource fields (hidden for vthunder/vyos) -->
+                                    <div id="fleetQuickResourceFields" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:8px;">
+                                        <div>
+                                            <label style="font-size:12px; color:#94a3b8;">CPU Cores</label>
+                                            <input type="number" id="fleetQuickCpu" class="q-input" style="width:100%;" min="1" max="16" value="2">
+                                        </div>
+                                        <div>
+                                            <label style="font-size:12px; color:#94a3b8;">RAM (MB)</label>
+                                            <input type="number" id="fleetQuickRam" class="q-input" style="width:100%;" min="512" max="65536" step="512" value="4096">
+                                        </div>
+                                        <div>
+                                            <label style="font-size:12px; color:#94a3b8;">Disk (GB)</label>
+                                            <input type="number" id="fleetQuickDisk" class="q-input" style="width:100%;" min="10" max="500" value="32">
+                                        </div>
+                                    </div>
+
+                                    <!-- Preview Table -->
+                                    <div style="margin-top:12px;">
+                                        <label style="font-size:12px; color:#94a3b8;">Preview</label>
+                                        <div style="max-height:200px; overflow-y:auto; border:1px solid #334155; border-radius:6px;">
+                                            <table class="q-table" style="margin:0; font-size:12px;">
+                                                <thead><tr><th>Hostname</th><th>IP</th><th>VMID</th><th>CPU</th><th>RAM</th><th>Disk</th></tr></thead>
+                                                <tbody id="fleetQuickPreview"></tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <!-- Quick Fleet Deploy -->
+                                    <div style="margin-top:16px; display:flex; justify-content:flex-end;">
+                                        <button class="q-button" data-action="fleet-deploy" style="background:#0d9488;">Deploy Fleet</button>
+                                    </div>
+
+                                    <!-- QUICK FLEET STATUS (appears after deploy) -->
+                                    <div id="fleetQuickStatusContainer" style="display:none; margin-top:12px;">
+                                        <button type="button"
+                                                class="q-telemetry-toggle"
+                                                data-action="toggle-fleet-status"
+                                                aria-expanded="false"
+                                                aria-controls="fleetStatusDrawer">
+                                            Fleet Status: <span id="fleetQuickStatusName"></span>
+                                            <span id="fleetQuickStatusCounter" class="q-mission-timer">0/0</span>
+                                        </button>
+
+                                        <div id="fleetQuickStatusDrawer" class="q-telemetry-drawer" style="max-height:600px; overflow-y:auto;">
+                                            <div class="q-fleet-progress-bar" style="margin:8px 0;">
+                                                <div id="fleetQuickProgressFill" class="q-fleet-progress-fill" style="width:0%;"></div>
+                                            </div>
+                                            <div id="fleetQuickVmList"></div>
+                                            <div style="margin-top:8px; display:flex; gap:8px; justify-content:flex-end;">
+                                                <button data-action="fleet-cancel-all" class="q-mini-btn" style="color:#f87171; border-color:rgba(239,68,68,0.5);">Cancel All</button>
+                                                <button class="q-mini-btn" data-action="fleet-reset">Close / Reset</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+<!-- CUSTOM FLEET FLYOUT OVERLAY (outside accordion) -->
+<div id="fleetFlyoutOverlay" class="q-fleet-flyout-overlay" style="display:none;">
+    <div class="q-fleet-flyout">
+        <div class="q-fleet-flyout-header">
+            <span>Custom Fleet Deployment</span>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button class="q-button" data-action="fleet-deploy" style="background:#0d9488; font-size:12px; padding:6px 16px;">Deploy Fleet</button>
+                <button class="q-mini-btn" data-action="fleet-close-flyout" style="font-size:14px;">✕</button>
+            </div>
+        </div>
+        <div class="q-fleet-flyout-body">
+            <!-- Fleet Name + Add VM -->
+            <div style="display:flex; align-items:flex-end; gap:16px; margin-bottom:16px;">
+                <div style="width:300px; flex-shrink:0;">
+                    <label style="font-size:12px; color:#94a3b8; white-space:nowrap;">Fleet Name</label>
+                    <input type="text" id="fleetCustomName" class="q-input" style="width:100%;" placeholder="e.g. mixed-lab-01">
+                </div>
+                <button type="button" class="q-button" style="font-size:12px; white-space:nowrap; width:auto; padding:8px 16px;" data-action="fleet-add-row">+ Add VM</button>
+            </div>
+
+            <!-- Custom VM Cards -->
+            <div id="fleetCustomRows">
+                <!-- VM cards added dynamically -->
+            </div>
+
+            <!-- CUSTOM FLEET STATUS (appears after deploy) -->
+            <div id="fleetStatusContainer" style="display:none; margin-top:16px; border-top:1px solid #334155; padding-top:16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <span style="font-size:13px; font-weight:600; color:#e5f6ff;">
+                        Fleet Status: <span id="fleetStatusName"></span>
+                        <span id="fleetStatusCounter" style="color:#06b6d4; margin-left:8px;">0/0</span>
+                    </span>
+                    <div style="display:flex; gap:8px;">
+                        <button data-action="fleet-cancel-all" class="q-mini-btn" style="color:#f87171; border-color:rgba(239,68,68,0.5);">Cancel All</button>
+                        <button class="q-mini-btn" data-action="fleet-reset">Close / Reset</button>
+                    </div>
+                </div>
+
+                <!-- Progress bar -->
+                <div class="q-fleet-progress-bar" style="margin:8px 0;">
+                    <div id="fleetProgressFill" class="q-fleet-progress-fill" style="width:0%;"></div>
+                </div>
+
+                <!-- VM list with inline expandable logs -->
+                <div id="fleetVmList">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

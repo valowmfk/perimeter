@@ -364,7 +364,7 @@
 # =====================================================================
 # 8. Install OS-Specific MOTD
 # =====================================================================
-- name: Install Q Branch MOTD (OS-aware)
+- name: Install Perimeter MOTD (OS-aware)
   hosts: all
   become: yes
   gather_facts: yes

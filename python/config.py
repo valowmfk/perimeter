@@ -1,6 +1,7 @@
 """Centralized configuration for Perimeter Automation Platform."""
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -15,6 +16,17 @@ for _k, _v in _sops_env.items():
     os.environ.setdefault(_k, _v)
 
 
+def _parse_subnets_env() -> dict:
+    """Parse PERIMETER_SUBNETS env var — handles JSON or empty/malformed gracefully."""
+    raw = os.getenv("PERIMETER_SUBNETS", "")
+    if not raw or raw.strip() in ("{}", ""):
+        return {}
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+
+
 @dataclass
 class Config:
     """All paths, constants, and environment-driven settings in one place."""
@@ -22,12 +34,12 @@ class Config:
     # ── Core paths ──────────────────────────────────────────────
     ROOT_DIR: Path = field(
         default_factory=lambda: Path(
-            os.getenv("QBRANCH_ROOT", "/home/mklouda/automation-demo")
+            os.getenv("PERIMETER_ROOT", os.getenv("QBRANCH_ROOT", "/opt/perimeter"))
         )
     )
     DOCKER_COMPOSE_DIR: Path = field(
         default_factory=lambda: Path(
-            os.getenv("DOCKER_COMPOSE_DIR", "/home/mklouda/docker")
+            os.getenv("DOCKER_COMPOSE_DIR", "/opt/docker")
         )
     )
 
@@ -57,7 +69,7 @@ class Config:
     # ── Proxmox ─────────────────────────────────────────────────
     PM_API_URL: str = field(
         default_factory=lambda: os.getenv(
-            "PM_API_URL", "https://goldfinger.home.klouda.co:8006/api2/json"
+            "PM_API_URL", "https://proxmox:8006/api2/json"
         )
     )
     PM_API_TOKEN_ID: str = field(
@@ -73,7 +85,7 @@ class Config:
     # ── Netbox ──────────────────────────────────────────────────
     NETBOX_URL: str = field(
         default_factory=lambda: os.getenv(
-            "NETBOX_URL", "https://netbox.home.klouda.co"
+            "NETBOX_URL", ""
         )
     )
     NETBOX_API_TOKEN: str = field(
@@ -84,11 +96,8 @@ class Config:
         default_factory=lambda: os.getenv("NETBOX_SUBNET", "10.1.55.0/24")
     )
 
-    # ── Subnets ────────────────────────────────────────────────
-    SUBNETS: dict = field(default_factory=lambda: {
-        "10.1.55.0/24": {"gateway": "10.1.55.254", "dns": ["10.1.55.10", "10.1.55.11"]},
-        "10.255.0.0/24": {"gateway": "10.255.0.1", "dns": ["10.1.55.10", "10.1.55.11"]},
-    })
+    # ── Subnets (populated by installer via PERIMETER_SUBNETS JSON env var) ──
+    SUBNETS: dict = field(default_factory=lambda: _parse_subnets_env())
 
     # ── Feature Toggles ──────────────────────────────────────────
     FEATURES: dict = field(default_factory=lambda: {
@@ -102,7 +111,7 @@ class Config:
 
     # ── DNS Domain ────────────────────────────────────────────────
     DNS_DOMAIN: str = field(
-        default_factory=lambda: os.getenv("PERIMETER_DNS_DOMAIN", "home.klouda.co")
+        default_factory=lambda: os.getenv("PERIMETER_DNS_DOMAIN", "")
     )
 
     # ── Pi-hole ─────────────────────────────────────────────────
@@ -128,7 +137,18 @@ class Config:
 
     # ── Loki (audit logging) ──────────────────────────────────
     LOKI_URL: str = field(
-        default_factory=lambda: os.getenv("LOKI_URL", "https://loki.home.klouda.co")
+        default_factory=lambda: os.getenv("LOKI_URL", "")
+    )
+
+    # ── Redis / Celery ─────────────────────────────────────────
+    REDIS_URL: str = field(
+        default_factory=lambda: os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    )
+    CELERY_BROKER_URL: str = field(
+        default_factory=lambda: os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
+    )
+    CELERY_RESULT_BACKEND: str = field(
+        default_factory=lambda: os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/1")
     )
 
     # ── Flask ───────────────────────────────────────────────────
@@ -166,8 +186,11 @@ class Config:
 
     @property
     def cert_domains(self) -> Dict[str, dict]:
-        """Certificate domain configuration — derived from DOCKER_COMPOSE_DIR and CERTIFICATE_DIR."""
-        domains = ["valowgaming.com", "sinkscanyon.net", "klouda.co", "klouda.work"]
+        """Certificate domain configuration — populated via PERIMETER_CERT_DOMAINS env var."""
+        domains_str = os.getenv("PERIMETER_CERT_DOMAINS", "")
+        if not domains_str:
+            return {}
+        domains = [d.strip() for d in domains_str.split(",") if d.strip()]
         result = {}
         for domain in domains:
             service_name = f"certbot-{domain.replace('.', '-')}"

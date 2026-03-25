@@ -2,7 +2,6 @@
 
 import { showToast, appendLogLine } from '../utils/dom.js';
 
-let flyoutLoaded = false;
 
 export function toggleProxmoxFlyout() {
     const flyout = document.getElementById('proxmoxFlyout');
@@ -12,11 +11,8 @@ export function toggleProxmoxFlyout() {
     if (flyout.style.display === 'none') {
         flyout.style.display = 'block';
         if (chevron) chevron.textContent = '\u25B4';
-        if (!flyoutLoaded) {
-            loadNodeStatus();
-            loadTemplates();
-            flyoutLoaded = true;
-        }
+        loadNodeStatus();
+        loadTemplates();
     } else {
         flyout.style.display = 'none';
         if (chevron) chevron.textContent = '\u25BE';
@@ -48,7 +44,7 @@ function formatBytes(bytes) {
 
 function loadNodeStatus() {
     const el = document.getElementById('proxmoxNodeStatus');
-    fetch(`/api/proxmox/node-status?node=${window.PERIMETER_CONFIG?.pmNode || 'pve'}`)
+    fetch(`/api/proxmox/node-status?node=${document.body.dataset.pmNode || 'pve'}`)
         .then(r => r.json())
         .then(data => {
             if (data.error) { el.textContent = data.error; return; }
@@ -71,7 +67,7 @@ export function loadTemplates() {
     if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#64748b;">Loading...</td></tr>';
 
-    fetch(`/api/proxmox/templates?node=${window.PERIMETER_CONFIG?.pmNode || 'pve'}`)
+    fetch(`/api/proxmox/templates?node=${document.body.dataset.pmNode || 'pve'}`)
         .then(r => r.json())
         .then(data => {
             if (data.error) { tbody.innerHTML = `<tr><td colspan="5">${data.error}</td></tr>`; return; }
@@ -118,7 +114,7 @@ export function refreshTemplate(templateName) {
     fetch('/api/template/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template_name: templateName, node: window.PERIMETER_CONFIG?.pmNode || 'pve' })
+        body: JSON.stringify({ template_name: templateName, node: document.body.dataset.pmNode || 'pve' })
     }).then(r => r.json()).then(data => {
         if (data.error) {
             showToast(data.error);

@@ -40,6 +40,7 @@ GREEN = "\033[0;32m"
 RED = "\033[0;31m"
 YELLOW = "\033[1;33m"
 BOLD = "\033[1m"
+DIM = "\033[2m"
 NC_EARLY = "\033[0m"  # needed before NC is defined below
 
 
@@ -61,7 +62,6 @@ def _tty_input(prompt_text: str) -> str:
 import builtins
 builtins._original_input = builtins.input
 builtins.input = _tty_input
-DIM = "\033[2m"
 NC = "\033[0m"
 
 
@@ -179,8 +179,8 @@ def screen_welcome(install_dir: str) -> Dict[str, str]:
     """Display welcome screen and verify prerequisites."""
     print()
     print(f"{BOLD}{CYAN}╔════════════════════════════════════════════════╗{NC}")
-    print(f"{BOLD}{CYAN}║      PERIMETER v{VERSION} — SETUP WIZARD          ║{NC}")
-    print(f"{BOLD}{CYAN}║       Automation Platform for Labs             ║{NC}")
+    print(f"{BOLD}{CYAN}║         PERIMETER v3.0 — SETUP WIZARD          ║{NC}")
+    print(f"{BOLD}{CYAN}║          Automation Platform for Labs           ║{NC}")
     print(f"{BOLD}{CYAN}╚════════════════════════════════════════════════╝{NC}")
     print()
 
@@ -750,6 +750,10 @@ def screen_feature_creds(features: Dict[str, bool]) -> Dict[str, str]:
     if features.get("certificates"):
         header("Certificate Management Configuration")
         creds["certbot_email"] = prompt("Certbot email (for Let's Encrypt)")
+        info("Enter domains you manage certificates for (comma-separated).")
+        info("Each domain needs a Cloudflare API credentials file in the certbot container.")
+        domains_input = prompt("Certificate domains", "")
+        creds["cert_domains"] = [d.strip() for d in domains_input.split(",") if d.strip()] if domains_input else []
 
     return creds
 
@@ -786,20 +790,55 @@ def screen_write_config(
     (install_path / "secrets").chmod(0o700)
     ok("Directories created (logs/, data/, secrets/)")
 
-    # ── Age keypair ────────────────────────────────
+    # ── Age keypair (encryption key for SOPS secrets) ──
     age_dir = Path(home_dir) / ".config" / "sops" / "age"
     age_key_path = age_dir / "keys.txt"
+    age_dir.mkdir(parents=True, exist_ok=True)
 
     if age_key_path.exists():
         ok(f"Age key already exists: {age_key_path}")
+        info("This key is used to encrypt/decrypt all secrets.")
+        if not prompt_yes_no("Keep existing Age key?"):
+            # Backup old key before regenerating
+            backup_path = age_key_path.with_suffix(f".backup-{datetime.now().strftime('%Y%m%d%H%M%S')}.txt")
+            shutil.copy2(str(age_key_path), str(backup_path))
+            os.chown(str(backup_path), uid, gid)
+            warn(f"Old key backed up to: {backup_path}")
+            run_cmd(["age-keygen", "-o", str(age_key_path)], check=True)
+            age_key_path.chmod(0o600)
+            os.chown(str(age_key_path), uid, gid)
+            ok("New Age keypair generated")
+            warn("Existing secrets will need to be re-encrypted with the new key!")
     else:
-        age_dir.mkdir(parents=True, exist_ok=True)
-        run_cmd(["age-keygen", "-o", str(age_key_path)], check=True)
-        age_key_path.chmod(0o600)
-        os.chown(str(age_key_path), uid, gid)
+        print()
+        info("Perimeter uses Age encryption (via SOPS) to protect secrets at rest.")
+        info("You can generate a new key or import one from another Perimeter install.")
+        print()
+        choice = prompt("Generate new key or import existing? [generate/import]", "generate").lower().strip()
+
+        if choice.startswith("i"):
+            import_path = prompt("Path to existing Age keys.txt file")
+            import_path = Path(import_path).expanduser()
+            if not import_path.exists():
+                fail(f"File not found: {import_path}")
+                sys.exit(1)
+            # Validate it looks like an Age key file
+            content = import_path.read_text()
+            if "AGE-SECRET-KEY" not in content:
+                fail("File does not appear to be a valid Age key (missing AGE-SECRET-KEY)")
+                sys.exit(1)
+            shutil.copy2(str(import_path), str(age_key_path))
+            age_key_path.chmod(0o600)
+            os.chown(str(age_key_path), uid, gid)
+            ok(f"Age key imported to: {age_key_path}")
+        else:
+            run_cmd(["age-keygen", "-o", str(age_key_path)], check=True)
+            age_key_path.chmod(0o600)
+            os.chown(str(age_key_path), uid, gid)
+            ok(f"Age keypair generated: {age_key_path}")
+
         for p in [age_dir, age_dir.parent, age_dir.parent.parent]:
             os.chown(str(p), uid, gid)
-        ok(f"Age keypair generated: {age_key_path}")
 
     # Extract public key from age key file
     age_public_key = ""
@@ -811,6 +850,13 @@ def screen_write_config(
         fail("Could not extract Age public key from key file")
         sys.exit(1)
     info(f"Age public key: {age_public_key}")
+
+    # Backup reminder
+    print()
+    warn("IMPORTANT: Back up your Age key! Without it, encrypted secrets are unrecoverable.")
+    info(f"  Key location: {age_key_path}")
+    info(f"  Back up to a secure location outside this server.")
+    print()
 
     # ── .sops.yaml ─────────────────────────────────
     sops_content = f"""creation_rules:
@@ -854,8 +900,8 @@ def screen_write_config(
         env_lines.append(f"CERTBOT_EMAIL={creds.get('certbot_email', '')}")
 
     # Write plaintext to temp, encrypt with SOPS, delete plaintext
-    enc_env_path = install_path / "secrets" / "automation-demo.enc.env"
-    plain_path = install_path / "secrets" / "automation-demo.plain.env"
+    enc_env_path = install_path / "secrets" / "perimeter.enc.env"
+    plain_path = install_path / "secrets" / "perimeter.plain.env"
     plain_path.write_text("\n".join(env_lines) + "\n")
 
     try:
@@ -868,7 +914,7 @@ def screen_write_config(
                 env={**os.environ, "SOPS_AGE_KEY_FILE": str(age_key_path)})
         enc_env_path.chmod(0o600)
         os.chown(str(enc_env_path), uid, gid)
-        ok("Secrets encrypted: secrets/automation-demo.enc.env")
+        ok("Secrets encrypted: secrets/perimeter.enc.env")
     except subprocess.CalledProcessError as e:
         stderr_msg = e.stderr.strip() if e.stderr else "no stderr"
         stdout_msg = e.stdout.strip() if e.stdout else "no stdout"
@@ -1010,6 +1056,10 @@ def screen_write_config(
         ok("Inventory already exists — keeping existing")
 
     # ── Systemd service ────────────────────────────
+    # Build env var values before the f-string
+    subnets_json = json.dumps({s['network']: {'gateway': s['gateway'], 'dns': s['dns']} for s in network['subnets']})
+    cert_domains_str = ",".join(creds.get('cert_domains', [])) if features.get('certificates') else ""
+
     service_content = textwrap.dedent(f"""\
         [Unit]
         Description=Perimeter Automation Platform
@@ -1021,15 +1071,17 @@ def screen_write_config(
         User={username}
         Group={username}
 
-        ExecStart={install_dir}/venv/bin/python3 -u {install_dir}/qbranch_app.py
+        ExecStart={install_dir}/venv/bin/python3 -u {install_dir}/perimeter_app.py
         WorkingDirectory={install_dir}
 
         Environment=SOPS_AGE_KEY_FILE={age_key_path}
-        Environment=QBRANCH_ROOT={install_dir}
+        Environment=PERIMETER_ROOT={install_dir}
         Environment=FLASK_PORT=8080
         Environment=PM_NODE={proxmox['pm_node']}
         Environment=PERIMETER_DNS_DOMAIN={network['dns_domain']}
+        Environment=PERIMETER_SUBNETS={subnets_json}
         Environment=PERIMETER_FEATURE_ANSIBLE={'1' if features.get('ansible') else '0'}
+        Environment=PERIMETER_CERT_DOMAINS={cert_domains_str}
         Environment=PERIMETER_FEATURE_CERTS={'1' if features.get('certificates') else '0'}
         Environment=PERIMETER_FEATURE_DNS={'1' if features.get('dns') else '0'}
         Environment=PERIMETER_FEATURE_IPAM={'1' if features.get('ipam') else '0'}
@@ -1125,7 +1177,7 @@ def screen_start_service(features: Dict[str, bool], install_dir: str) -> None:
     # ── Summary ────────────────────────────────────
     print()
     print(f"{BOLD}{CYAN}╔════════════════════════════════════════════════╗{NC}")
-    print(f"{BOLD}{CYAN}║          INSTALLATION COMPLETE ✓               ║{NC}")
+    print(f"{BOLD}{CYAN}║           INSTALLATION COMPLETE ✓               ║{NC}")
     print(f"{BOLD}{CYAN}╚════════════════════════════════════════════════╝{NC}")
     print()
 
@@ -1159,7 +1211,7 @@ def screen_start_service(features: Dict[str, bool], install_dir: str) -> None:
     print(f"  {BOLD}Useful commands:{NC}")
     print(f"    Logs:      journalctl -u perimeter -f")
     print(f"    Restart:   sudo systemctl restart perimeter")
-    print(f"    Config:    {install_dir}/secrets/automation-demo.enc.env")
+    print(f"    Config:    {install_dir}/secrets/perimeter.enc.env")
     print(f"    Features:  Edit /etc/systemd/system/perimeter.service")
     print()
     print(f"  {BOLD}Next steps:{NC}")

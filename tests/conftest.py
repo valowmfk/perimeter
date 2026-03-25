@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for Q Branch Automation tests."""
+"""Shared pytest fixtures for Perimeter Automation tests."""
 
 import json
 import sys

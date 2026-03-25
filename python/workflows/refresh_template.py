@@ -27,8 +27,8 @@ COMPONENT = "TPL-REFRESH"
 TEMP_VMID_OFFSET = 50000
 REFRESH_LOG_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "data", "template_refresh.json")
 PLAYBOOK_DIR = os.path.join(cfg.ROOT_DIR, "playbooks")
-SSH_KEY = os.path.expanduser("~/.ssh/ansible_qbranch")
-SSH_USER = "mklouda"
+SSH_KEY = os.getenv("PERIMETER_SSH_KEY", os.path.expanduser("~/.ssh/ansible_perimeter"))
+SSH_USER = os.getenv("PERIMETER_SSH_USER", os.getenv("USER", "perimeter"))
 
 
 def _pm_url(path: str) -> str:
@@ -173,12 +173,13 @@ def _cleanup_temp_vm(node: str, vmid: int):
         print(f"[TPL-REFRESH] ✖ Failed to clean up temp VM {vmid}: {e}", flush=True)
 
 
-def refresh_template(template_name: str, node: str = "goldfinger"):
+def refresh_template(template_name: str, node: str = None):
     """
     Refresh a Linux VM template.
 
     Returns dict with step-by-step results.
     """
+    node = node or cfg.PM_NODE
     results = {"steps": [], "success": True, "new_vmid": None}
 
     def _emit(msg):
@@ -218,14 +219,18 @@ def refresh_template(template_name: str, node: str = "goldfinger"):
         log_step("Discover template", False, f"Template '{template_name}' not found")
         return results
 
-    # Fixed temp VMID: 59000 + index based on template name
-    # This prevents VMID snowball (9000→59000→109000) by always using the same temp slot
+    # Temp VMID: use 58000 range (separate from 59000 range where refreshed templates live)
     TEMP_VMID_MAP = {
-        "rocky9-template": 59000,
-        "ubuntu22-template": 59001,
-        "rhel9-template": 59002,
+        "rocky9-template": 58000,
+        "ubuntu22-template": 58001,
+        "rhel9-template": 58002,
     }
-    temp_vmid = TEMP_VMID_MAP.get(template_name, 59000 + abs(hash(template_name)) % 100)
+    temp_vmid = TEMP_VMID_MAP.get(template_name, 58000 + abs(hash(template_name)) % 100)
+
+    # Safety: temp VMID must NEVER equal the template VMID
+    if temp_vmid == template_vmid:
+        temp_vmid = template_vmid + 1000
+
     log_step("Discover template", True, f"VMID={template_vmid}, temp={temp_vmid}")
 
     # Check if temp VM already exists (leftover from failed refresh)
@@ -413,7 +418,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Refresh a Proxmox VM template")
     parser.add_argument("template_name", help="Template name (e.g., rocky9-template)")
-    parser.add_argument("--node", default="goldfinger", help="Proxmox node name")
+    parser.add_argument("--node", default=None, help="Proxmox node name (default: from PM_NODE env var)")
     parser.add_argument("--json", action="store_true", help="Print JSON result (CLI mode)")
     args = parser.parse_args()
 

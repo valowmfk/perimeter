@@ -1,17 +1,15 @@
 """System status, cluster health, network bridges, vThunder query, and template management routes."""
 
 import os
-import subprocess
-import uuid
+import json
 import time
 import requests
 
 from flask import Blueprint, jsonify, request, Response
 
 from config import cfg
-from utils.metrics import VIP_OPERATIONS, TEMPLATE_REFRESHES
+from utils.metrics import VIP_OPERATIONS
 from .shared import (
-    JOB_STATUS,
     PM_API_URL,
     TERRAFORM_DIR,
     api_error,
@@ -82,8 +80,20 @@ def api_system_status():
     else:
         terraform = {"status": "idle", "label": "idle"}
 
-    # Bootstrap queue
-    active = sum(1 for j in JOB_STATUS.values() if j.get("status") in ("Running", "Starting"))
+    # Active jobs (from Redis)
+    try:
+        import redis as _redis_mod
+        _r = _redis_mod.Redis.from_url(cfg.REDIS_URL)
+        job_keys = _r.keys("perimeter:job:*")
+        active = 0
+        for key in job_keys:
+            status = _r.hget(key, "status")
+            if status and status.decode() == "running":
+                active += 1
+        _r.close()
+    except Exception:
+        active = 0
+
     if active > 0:
         bootstrap = {"status": "busy", "label": "busy", "extra": f"{active} job(s)"}
     else:
@@ -366,7 +376,8 @@ def api_vthunder_destroy_vip():
 
 # ── Template Management ────────────────────────────────────
 
-_refresh_processes = {}
+
+
 
 
 @system_bp.route("/api/proxmox/templates")
@@ -379,7 +390,7 @@ def api_proxmox_templates():
     try:
         url = f"{PM_API_URL}/nodes/{node}/qemu"
         r = requests.get(url, headers=headers, verify=False, timeout=10)
-        data = r.json().get("data", [])
+        data = r.json().get("data") or []
     except Exception as e:
         return api_error(str(e), 500)
 
@@ -414,7 +425,7 @@ def api_proxmox_templates():
 
 @system_bp.route("/api/template/refresh", methods=["POST"])
 def api_template_refresh():
-    """Start a template refresh. Returns a session_id for SSE streaming."""
+    """Start a template refresh. Returns a task_id for SSE streaming."""
     data = request.json or {}
     template_name = data.get("template_name", "").strip()
     node = data.get("node", cfg.PM_NODE).strip()
@@ -425,69 +436,32 @@ def api_template_refresh():
     if template_name.startswith("acos") or template_name.startswith("vyos"):
         return api_error("Vendor templates cannot be refreshed")
 
-    session_id = str(uuid.uuid4())
-
-    cmd = [
-        "python3", "-u",
-        os.path.join(cfg.ROOT_DIR, "python", "workflows", "refresh_template.py"),
-        template_name,
-        "--node", node,
-    ]
-
-    env = os.environ.copy()
-    from utils.qlog import get_correlation_id
-    cid = get_correlation_id()
-    if cid:
-        env["PERIMETER_CORRELATION_ID"] = cid
-
-    process = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-        env=env,
-        cwd=cfg.ROOT_DIR,
-    )
-
-    _refresh_processes[session_id] = {
-        "process": process,
-        "template": template_name,
-        "start_time": time.time(),
-    }
-
     from .audit import audit_log
     audit_log("template_refresh", template_name, f"node={node}")
 
-    return jsonify({"session_id": session_id})
+    from tasks.workflows import refresh_template
+    task = refresh_template.delay(template_name=template_name, node=node)
+
+    return jsonify({
+        "session_id": task.id,
+        "stream_url": f"/api/tasks/{task.id}/stream",
+    })
 
 
 @system_bp.route("/api/template/refresh/stream/<session_id>")
 def api_template_refresh_stream(session_id):
-    """SSE stream for template refresh progress."""
-    data = _refresh_processes.get(session_id)
-    if not data:
-        return api_error("Invalid session", 404)
+    """SSE stream for template refresh — delegates to unified task stream."""
+    from utils.redis_stream import sse_subscribe, get_task_channel
 
-    process = data["process"]
-
-    template_name = data.get("template", "unknown")
-
-    def generate():
-        for raw in process.stdout:
-            line = raw.rstrip()
-            yield f"data: {line}\n\n"
-        process.wait(timeout=1800)
-        status = "success" if process.returncode == 0 else "failed"
-        TEMPLATE_REFRESHES.labels(template=template_name, status=status).inc()
-        yield "data: __COMPLETE__\n\n"
-        _refresh_processes.pop(session_id, None)
-
-    return Response(generate(), mimetype="text/event-stream", headers={
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no",
-        "Connection": "keep-alive",
-    })
+    return Response(
+        sse_subscribe(get_task_channel(session_id)),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @system_bp.route("/api/proxmox/node-status")
@@ -500,7 +474,7 @@ def api_proxmox_node_status():
     try:
         url = f"{PM_API_URL}/nodes/{node}/status"
         r = requests.get(url, headers=headers, verify=False, timeout=10)
-        data = r.json().get("data", {})
+        data = r.json().get("data") or {}
         return jsonify({
             "node": node,
             "uptime": data.get("uptime", 0),

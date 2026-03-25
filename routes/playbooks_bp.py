@@ -1,24 +1,18 @@
 """Playbook and inventory management routes."""
 
 import os
-import subprocess
-import time
-import uuid
 
 from flask import Blueprint, Response, jsonify, request
 
 from .audit import audit_log
-from utils.metrics import PLAYBOOK_RUNS, PLAYBOOK_RUNS_ACTIVE
 from .shared import (
     INVENTORY_DIR,
     PLAYBOOK_DIR,
-    SUBPROCESS_TIMEOUT,
     api_error,
     is_safe_filename,
     list_inventories,
     list_playbooks,
     load_inventory_yaml,
-    running_processes,
 )
 
 playbooks_bp = Blueprint("playbooks", __name__)
@@ -121,84 +115,38 @@ def run_playbook():
     if verbosity not in allowed_verbosity:
         return api_error("Invalid verbosity level")
 
-    session_id = str(uuid.uuid4())
-    start_time = time.time()
     playbook_path = os.path.join(PLAYBOOK_DIR, file)
-
-    cmd = [
-        "ansible-playbook",
-        "-i", os.path.join(INVENTORY_DIR, inventory),
-        "--private-key", os.path.expanduser("~/.ssh/ansible"),
-        playbook_path,
-    ]
-
-    apply_group_limit = True
-    if group:
-        try:
-            with open(playbook_path, 'r') as f:
-                content = f.read()
-                if 'hosts: localhost' in content or 'hosts: "localhost"' in content:
-                    apply_group_limit = False
-        except Exception:
-            pass
-
-    if group and apply_group_limit:
-        cmd.extend(["-l", group])
-    if verbosity:
-        cmd.append(verbosity)
+    inventory_path = os.path.join(INVENTORY_DIR, inventory)
 
     audit_log("playbook_run", file, f"inventory={inventory} group={group}")
 
-    from utils.qlog import get_correlation_id
-    env = os.environ.copy()
-    cid = get_correlation_id()
-    if cid:
-        env["PERIMETER_CORRELATION_ID"] = cid
-
-    process = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-        env=env,
+    from tasks.workflows import run_playbook as run_playbook_task
+    task = run_playbook_task.delay(
+        playbook_path=playbook_path,
+        inventory_path=inventory_path,
+        group=group,
+        verbosity=verbosity,
     )
 
-    running_processes[session_id] = {
-        "process": process,
-        "start_time": start_time,
-        "playbook": file,
-        "inventory": inventory,
-        "verbosity": verbosity,
-        "group": group,
-    }
-
-    return jsonify({"session_id": session_id})
+    return jsonify({
+        "session_id": task.id,
+        "stream_url": f"/api/tasks/{task.id}/stream",
+    })
 
 
 @playbooks_bp.route("/stream/<session_id>")
 def stream_output(session_id):
-    data = running_processes.get(session_id)
-    if not data:
-        return api_error("Invalid session", 404)
+    """SSE stream for playbook output — delegates to unified task stream."""
+    from utils.redis_stream import sse_subscribe, get_task_channel
 
-    process = data["process"]
-
-    playbook_name = data.get("file", "unknown")
-    PLAYBOOK_RUNS_ACTIVE.inc()
-
-    def generate():
-        for raw in process.stdout:
-            line = raw.rstrip()
-            yield f"data: {line}\n\n"
-        try:
-            process.wait(timeout=SUBPROCESS_TIMEOUT)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            yield f"data: [QBRANCH] Process killed after {SUBPROCESS_TIMEOUT}s timeout\n\n"
-        status = "success" if process.returncode == 0 else "failed"
-        PLAYBOOK_RUNS.labels(playbook=playbook_name, status=status).inc()
-        PLAYBOOK_RUNS_ACTIVE.dec()
-        yield "data: __COMPLETE__\n\n"
+    return Response(
+        sse_subscribe(get_task_channel(session_id)),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
     return Response(generate(), mimetype="text/event-stream")

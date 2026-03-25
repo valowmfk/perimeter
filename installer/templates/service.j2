@@ -8,7 +8,7 @@ Type=simple
 User={{ service_user }}
 Group={{ service_user }}
 
-ExecStart=/usr/bin/python3 -u {{ install_dir }}/qbranch_app.py
+ExecStart=/usr/bin/python3 -u {{ install_dir }}/perimeter_app.py
 WorkingDirectory={{ install_dir }}
 
 # SOPS decryption needs the Age private key

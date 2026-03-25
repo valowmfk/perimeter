@@ -20,7 +20,7 @@ from utils.qlog import init_correlation_id_from_env
 from utils.sops_env import load_env
 
 COMPONENT = "VTH-BOOT"
-DEFAULT_ENV_FILE = str(Path(__file__).resolve().parent.parent.parent / "secrets" / "automation-demo.enc.env")
+DEFAULT_ENV_FILE = str(Path(__file__).resolve().parent.parent.parent / "secrets" / "perimeter.enc.env")
 
 
 
@@ -52,7 +52,7 @@ class BootstrapEnv:
     radius_ip: Optional[str]
     radius_key: Optional[str]
     ssh_pubkey_path: Optional[str]
-    qbranch_ip: Optional[str]
+    perimeter_ip: Optional[str]
 
     @classmethod
     def from_raw(cls, raw: Dict[str, str]) -> "BootstrapEnv":
@@ -78,7 +78,7 @@ class BootstrapEnv:
             radius_ip=raw.get("VTH_RADIUS_IP") or None,
             radius_key=raw.get("VTH_RADIUS_KEY") or None,
             ssh_pubkey_path=raw.get("VTH_SSH_PUBKEY_PATH") or None,
-            qbranch_ip=raw.get("QBRANCH_IP") or None,
+            perimeter_ip=raw.get("PERIMETER_IP", raw.get("QBRANCH_IP")) or None,
         )
 
 
@@ -727,10 +727,10 @@ def _import_ssh_pubkey_with_client(
     key_server_port: int = 8099,
 ) -> None:
     """Import SSH public key via aXAPI using a temporary HTTP server."""
-    if not env.ssh_pubkey_path or not env.qbranch_ip:
+    if not env.ssh_pubkey_path or not env.perimeter_ip:
         qlog_warning(
             COMPONENT,
-            "VTH_SSH_PUBKEY_PATH or QBRANCH_IP not set; skipping SSH pubkey import.",
+            "VTH_SSH_PUBKEY_PATH or PERIMETER_IP not set; skipping SSH pubkey import.",
         )
         return
 
@@ -739,7 +739,7 @@ def _import_ssh_pubkey_with_client(
         qlog_warning(COMPONENT, f"SSH pubkey not found at {env.ssh_pubkey_path}; skipping.")
         return
 
-    file_url = f"http://{env.qbranch_ip}:{key_server_port}/{pubkey_file.name}"
+    file_url = f"http://{env.perimeter_ip}:{key_server_port}/{pubkey_file.name}"
 
     qlog(COMPONENT, f"Importing SSH pubkey via aXAPI: {file_url}")
     try:
@@ -875,7 +875,7 @@ def run_vthunder_bootstrap(
     # Start temporary HTTP server for SSH pubkey import (if configured)
     key_server = None
     key_server_port = 8099
-    if env.ssh_pubkey_path and env.qbranch_ip:
+    if env.ssh_pubkey_path and env.perimeter_ip:
         try:
             key_server, _ = _start_key_server(env.ssh_pubkey_path, port=key_server_port)
             qlog(COMPONENT, f"SSH pubkey server started on port {key_server_port}")

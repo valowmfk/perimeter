@@ -7,7 +7,6 @@
 set -euo pipefail
 
 INSTALL_DIR="${INSTALL_DIR:-/opt/perimeter}"
-PERIMETER_VERSION="3.0"
 SOPS_VERSION="3.11.0"
 AGE_VERSION="1.3.1"
 INSTALLER_LOG="/tmp/perimeter-install.log"
@@ -72,7 +71,7 @@ fi
 
 echo ""
 echo "================================================"
-echo "   PERIMETER v${PERIMETER_VERSION} — BOOTSTRAP INSTALLER"
+echo "   PERIMETER v3.1 — BOOTSTRAP INSTALLER"
 echo "   Automation Platform for Labs"
 echo "================================================"
 echo ""
@@ -84,6 +83,8 @@ if [[ -f /etc/os-release ]]; then
     . /etc/os-release
     OS_ID="${ID}"
     OS_NAME="${PRETTY_NAME}"
+    # OS_VERSION available for future use
+    export OS_VERSION="${VERSION_ID:-unknown}"
     OS_CODENAME="${VERSION_CODENAME:-}"
 else
     fail "Cannot detect OS — /etc/os-release not found"
@@ -106,7 +107,7 @@ esac
 ok "Detected: $OS_NAME ($OS_FAMILY family)"
 
 # ── Check existing installation ───────────────
-if [[ -d "$INSTALL_DIR" && -f "$INSTALL_DIR/qbranch_app.py" ]]; then
+if [[ -d "$INSTALL_DIR" && -f "$INSTALL_DIR/perimeter_app.py" ]]; then
     warn "Existing installation found at $INSTALL_DIR"
     read -p "  Overwrite? [y/N]: " -n 1 -r < /dev/tty
     echo
@@ -152,22 +153,23 @@ else
         run_quiet yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
         run_quiet dnf install -y terraform
     else
-        # Get codename from os-release, fall back to lsb_release
+        # Get codename — fall back to VERSION_CODENAME from os-release if lsb_release fails
         CODENAME="${OS_CODENAME}"
         if [[ -z "$CODENAME" ]] && command -v lsb_release &>/dev/null; then
             CODENAME="$(lsb_release -cs)"
         fi
+        # If codename is still empty or not in HashiCorp repo, fall back to latest Ubuntu LTS
         if [[ -z "$CODENAME" ]]; then
+            warn "Could not determine OS codename — using 'noble' (Ubuntu 24.04 LTS)"
             CODENAME="noble"
         fi
 
         curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --batch --yes --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg 2>/dev/null
-
-        # Try the detected codename first, fall back to noble (latest LTS) if HashiCorp doesn't support it
         echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com ${CODENAME} main" \
             > /etc/apt/sources.list.d/hashicorp.list
+        # If apt update fails (codename not in repo), try noble fallback
         if ! apt-get update -qq >> "$INSTALLER_LOG" 2>&1; then
-            warn "HashiCorp repo doesn't support '${CODENAME}' — using 'noble' (Ubuntu 24.04 LTS)"
+            warn "HashiCorp repo may not support '${CODENAME}' yet — trying 'noble' fallback"
             CODENAME="noble"
             echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com ${CODENAME} main" \
                 > /etc/apt/sources.list.d/hashicorp.list
@@ -205,7 +207,7 @@ else
     ok "Age installed: v${AGE_VERSION}"
 fi
 
-# ── Ansible (system-wide — needed outside venv for playbooks) ──
+# ── Ansible ───────────────────────────────────
 header "Installing Ansible"
 
 if command -v ansible-playbook &> /dev/null; then
@@ -217,10 +219,12 @@ else
     else
         run_quiet pip3 install ansible
     fi
+    # Ensure pip-installed binaries are in PATH
     export PATH="/usr/local/bin:$HOME/.local/bin:$PATH"
     ok "Ansible installed: $(ansible --version 2>/dev/null | head -1 || echo 'installed')"
 fi
 
+# Ensure all installed binaries are findable for the Python setup
 export PATH="/usr/local/bin:$HOME/.local/bin:$PATH"
 
 # ── Docker (optional — checked during Python setup) ──
@@ -232,6 +236,28 @@ else
     warn "Docker not installed — Certificate Management feature requires Docker"
     info "Install later with: https://docs.docker.com/engine/install/"
 fi
+
+# ── Redis ─────────────────────────────────────
+header "Installing Redis"
+
+if command -v redis-server &> /dev/null; then
+    ok "Redis already installed: $(redis-server --version | awk '{print $3}')"
+else
+    info "Installing Redis..."
+    if [[ "$OS_FAMILY" == "rhel" ]]; then
+        run_quiet dnf install -y redis
+    else
+        run_quiet apt-get install -y -qq redis-server
+    fi
+    ok "Redis installed"
+fi
+
+# Ensure Redis is running
+if ! systemctl is-active --quiet redis-server 2>/dev/null && ! systemctl is-active --quiet redis 2>/dev/null; then
+    info "Starting Redis..."
+    systemctl enable --now redis-server 2>/dev/null || systemctl enable --now redis 2>/dev/null || warn "Could not start Redis — start it manually"
+fi
+ok "Redis is running"
 
 # ── Clone / Update Repository ────────────────
 header "Setting Up Perimeter"
@@ -245,7 +271,7 @@ else
     info "Cloning Perimeter to $INSTALL_DIR..."
     git clone https://github.com/valowmfk/perimeter.git "$INSTALL_DIR" 2>/dev/null || {
         # If repo doesn't exist yet (pre-release), just use current directory
-        if [[ -f "$(dirname "$0")/../qbranch_app.py" ]]; then
+        if [[ -f "$(dirname "$0")/../perimeter_app.py" ]]; then
             INSTALL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
             info "Using local installation at $INSTALL_DIR"
         else
@@ -281,6 +307,11 @@ header "Installing Python Dependencies"
 cd "$INSTALL_DIR"
 run_quiet "$VENV_PIP" install -r requirements.txt
 ok "Python packages installed"
+
+# ── Celery worker dependency ─────────────────
+info "Installing Celery with Redis support..."
+run_quiet "$VENV_PIP" install "celery[redis]"
+ok "Celery installed"
 
 # ── Hand off to Python setup ─────────────────
 echo ""

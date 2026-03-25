@@ -1,7 +1,7 @@
 variable "proxmox_endpoint" {
-  description = "Proxmox API endpoint (e.g. https://goldfinger.home.klouda.co:8006/)"
+  description = "Proxmox API endpoint (e.g. https://proxmox:8006/)"
   type        = string
-  default     = "https://goldfinger:8006/"
+  default     = "https://proxmox:8006/"
 }
 
 variable "proxmox_api_token" {

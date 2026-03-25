@@ -1,23 +1,18 @@
-<!-- UNIFIED HEADER (Theme-aware) -->
+<!-- HEADER -->
 <header class="unified-header" role="banner">
     <div class="unified-header-left">
-        <img id="themeLogo" src="/static/assets/perimeter/perimeter-logo.svg" alt="Perimeter" class="unified-logo">
+        <img src="/static/assets/perimeter/perimeter-logo.svg" alt="Perimeter" class="unified-logo">
         <div class="unified-title-block">
-            <div id="themeTitle" class="unified-title">Perimeter</div>
-            <div id="themeSubtitle" class="unified-subtitle">Automation Platform</div>
+            <div class="unified-title">Perimeter</div>
+            <div class="unified-subtitle">Automation Platform</div>
         </div>
     </div>
     <div class="unified-header-right">
-        <span id="themeTag" class="unified-header-tag">VM · Ansible · Certificates · Live Telemetry</span>
-
-        <select id="themeSelector" class="theme-selector" aria-label="Theme">
-            <option value="perimeter">Perimeter</option>
-            <option value="a10">A10</option>
-        </select>
+        <span class="unified-header-tag">VM · Ansible · Certificates · Live Telemetry</span>
     </div>
 </header>
 
-<!-- PROXMOX STATUS STRIP (Perimeter only) -->
+<!-- PROXMOX STATUS STRIP -->
 <nav id="proxmoxStrip" class="q-proxmox-strip" aria-label="System status">
     <div class="q-cert-strip-toggle" data-action="toggle-proxmox-flyout" role="button" tabindex="0" aria-expanded="false" aria-label="Toggle Proxmox cluster flyout">
         <span class="q-strip-label">PROXMOX CLUSTER · {{ pm_node }}</span>

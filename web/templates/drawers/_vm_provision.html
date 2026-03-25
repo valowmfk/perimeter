@@ -37,7 +37,7 @@
                                     <select class="q-input" id="template">
                                         <option value="">-- Select Template --</option>
                                         {% for t in templates %}
-                                            <option value="{{ t.name }}" data-vmid="{{ t.vmid }}" data-type="{{ 'vthunder' if t.name.startswith('acos') else 'linux' }}">{{ t.name }}</option>
+                                            <option value="{{ t.name }}" data-vmid="{{ t.vmid }}" data-type="{{ 'vthunder' if t.name.lower().startswith('acos') else 'vyos' if t.name.lower().startswith('vyos') else 'linux' }}">{{ t.name }}</option>
                                         {% endfor %}
                                     </select>
 
@@ -108,7 +108,9 @@
                                         </div>
                                     </div>
 
-                                    <button class="q-button" data-action="start-deploy">INITIATE PROVISIONING</button>
+                                    <div style="display:flex; gap:8px;">
+                                        <button class="q-button" data-action="start-deploy">INITIATE PROVISIONING</button>
+                                    </div>
 
                                     <div id="deployStatus" class="q-status"></div>
                                 </div>

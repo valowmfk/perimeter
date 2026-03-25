@@ -1,5 +1,14 @@
 // Safe DOM utilities
 
+/** Get a Perimeter config value — reads from body data attributes (CSP-safe) or window.PERIMETER_CONFIG. */
+export function getConfig(key, fallback = '') {
+    // data-pm-node on <body> → key 'pmNode'
+    const dataKey = key.replace(/([A-Z])/g, '-$1').toLowerCase(); // pmNode → pm-node
+    const bodyVal = document.body?.dataset?.[key];
+    if (bodyVal) return bodyVal;
+    return window.PERIMETER_CONFIG?.[key] || fallback;
+}
+
 export function escapeHtml(str) {
     if (str == null) return '';
     return String(str)
