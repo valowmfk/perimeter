@@ -116,6 +116,9 @@ class TestRemoveSshHostKeys:
 # ──────────────────────────────
 
 class TestDestroyVm:
+    MOCK_FEATURES = {"dns": True, "ipam": True, "vthunder": True, "ansible": True, "certificates": True}
+
+    @patch("config.cfg.FEATURES", MOCK_FEATURES)
     @patch("workflows.destroy_vm.remove_ssh_host_keys")
     @patch("workflows.destroy_vm.remove_host_from_yaml", return_value="staging_linux")
     @patch("workflows.destroy_vm.locked_update")
@@ -132,6 +135,7 @@ class TestDestroyVm:
         mock_inv_yaml.assert_called_once_with("web-01")
         mock_ssh.assert_called_once_with("web-01", "10.1.55.50")
 
+    @patch("config.cfg.FEATURES", MOCK_FEATURES)
     @patch("workflows.destroy_vm.remove_ssh_host_keys")
     @patch("workflows.destroy_vm.remove_host_from_yaml", return_value="staging_vthunder")
     @patch("workflows.destroy_vm.locked_update")
@@ -148,6 +152,7 @@ class TestDestroyVm:
     def test_destroy_not_found(self, mock_find):
         assert destroy_vm(9999) == 1
 
+    @patch("config.cfg.FEATURES", MOCK_FEATURES)
     @patch("workflows.destroy_vm.run_terraform_destroy", return_value=1)
     @patch("workflows.destroy_vm.netbox_delete_ip", return_value=True)
     @patch("workflows.destroy_vm.dns_remove_record", return_value=True)
@@ -155,6 +160,7 @@ class TestDestroyVm:
     def test_destroy_tf_failure(self, mock_find, mock_dns, mock_netbox, mock_tf):
         assert destroy_vm(8001) == 1
 
+    @patch("config.cfg.FEATURES", MOCK_FEATURES)
     @patch("workflows.destroy_vm.remove_ssh_host_keys")
     @patch("workflows.destroy_vm.remove_host_from_yaml", return_value=None)
     @patch("workflows.destroy_vm.locked_update")

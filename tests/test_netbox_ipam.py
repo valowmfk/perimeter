@@ -16,6 +16,10 @@ from helpers.netbox_ipam import (
 def patch_env(monkeypatch):
     monkeypatch.setattr("helpers.netbox_ipam.cfg.NETBOX_URL", "https://netbox-test")
     monkeypatch.setattr("helpers.netbox_ipam.cfg.NETBOX_API_TOKEN", "test-token")
+    monkeypatch.setattr(
+        "config.subnet_for_ip",
+        lambda ip: {"gateway": "10.1.55.1", "dns": "10.1.55.1", "cidr": 24, "network": "10.1.55.0/24"},
+    )
 
 
 # ──────────────────────────────

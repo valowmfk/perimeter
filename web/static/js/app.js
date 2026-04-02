@@ -1,5 +1,5 @@
 // app.js — Main entry point (ES module)
-// Wires up all modules, event delegation, and accordion drawer system.
+// Wires up all modules, event delegation, and rail view switching system.
 
 import { showToast } from './utils/dom.js';
 import { toggleDnsFields, createDnsRecord } from './modules/dns.js';
@@ -33,49 +33,41 @@ import { initVipManager, loadVips, openVipBuilder, closeVipBuilder,
          openVipDestroy, confirmVipDestroy, cancelVipDestroy } from './modules/vthunder.js';
 
 /* ============================
-   Accordion Drawer System
+   Rail View Switching System
    ============================ */
 
-function toggleAccordionDrawer(drawerId) {
+function switchView(drawerId) {
     const drawer = document.getElementById(drawerId);
     if (!drawer) return;
 
-    const button = drawer.previousElementSibling;
-    const container = drawer.closest('.q-panel-controls');
-
-    const accordionDrawers = [
-        { id: 'vmProvisionDrawer',          button: document.querySelector('[data-action="toggle-vm-provision"]') },
-        { id: 'fleetDrawer',               button: document.querySelector('[data-action="toggle-fleet"]') },
-        { id: 'ansibleOrchestrationDrawer', button: document.querySelector('[data-action="toggle-ansible"]') },
-        { id: 'certificateManagementDrawer',button: document.querySelector('[data-action="toggle-certificates"]') },
-        { id: 'dnsManagementDrawer',        button: document.querySelector('[data-action="toggle-dns"]') },
-        { id: 'ipamDrawer',                 button: document.querySelector('[data-action="toggle-ipam"]') },
-        { id: 'vipManagerDrawer',            button: document.querySelector('[data-action="toggle-vip-manager"]') }
+    // Map of drawer IDs to their toggle data-action values
+    const views = [
+        { id: 'vmProvisionDrawer',           action: 'toggle-vm-provision' },
+        { id: 'fleetDrawer',                action: 'toggle-fleet' },
+        { id: 'ansibleOrchestrationDrawer',  action: 'toggle-ansible' },
+        { id: 'certificateManagementDrawer', action: 'toggle-certificates' },
+        { id: 'dnsManagementDrawer',         action: 'toggle-dns' },
+        { id: 'ipamDrawer',                 action: 'toggle-ipam' },
+        { id: 'vipManagerDrawer',            action: 'toggle-vip-manager' }
     ];
 
-    // CLOSE: just remove open class
-    if (drawer.classList.contains('open')) {
-        drawer.classList.remove('open');
-        if (button) button.setAttribute('aria-expanded', 'false');
-        return;
-    }
-
-    // Close all other drawers
-    accordionDrawers.forEach(item => {
+    // Close all drawers
+    views.forEach(item => {
         const d = document.getElementById(item.id);
-        if (d && d !== drawer) {
-            d.classList.remove('open');
-            if (item.button) item.button.setAttribute('aria-expanded', 'false');
-        }
+        if (d) d.classList.remove('open');
+        const btn = document.querySelector(`[data-action="${item.action}"]`);
+        if (btn) btn.setAttribute('aria-expanded', 'false');
     });
 
-    // OPEN: move button + drawer to top of container, then open
-    if (container && button) {
-        container.prepend(drawer);
-        container.prepend(button);
-    }
+    // Open target drawer
     drawer.classList.add('open');
-    if (button) button.setAttribute('aria-expanded', 'true');
+    const toggleBtn = document.querySelector(`[data-action="${views.find(v => v.id === drawerId)?.action}"]`);
+    if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'true');
+
+    // Update rail active state
+    document.querySelectorAll('.rail-btn').forEach(btn => btn.classList.remove('active'));
+    const railBtn = document.querySelector(`.rail-btn[data-action="${views.find(v => v.id === drawerId)?.action}"]`);
+    if (railBtn) railBtn.classList.add('active');
 }
 
 /* ============================
@@ -90,25 +82,16 @@ function toggleTelemetry() {
     if (btn) btn.setAttribute('aria-expanded', drawer.classList.contains('open'));
 }
 
-function toggleAssets() {
-    const drawer = document.getElementById('qAssetsDrawer');
-    if (!drawer) return;
-    drawer.classList.toggle('open');
-    const btn = document.querySelector('[data-action="toggle-assets"]');
-    if (btn) btn.setAttribute('aria-expanded', drawer.classList.contains('open'));
-}
+// Assets panel is always visible in Mission Control layout — no toggle needed
 
 
 /* ============================
-   IPAM Drawer (accordion + lazy load)
+   IPAM Drawer (view switch + lazy load)
    ============================ */
 
 function toggleIpamDrawer() {
-    toggleAccordionDrawer('ipamDrawer');
-    const drawer = document.getElementById('ipamDrawer');
-    if (drawer && drawer.classList.contains('open')) {
-        tryLoadIpam();
-    }
+    switchView('ipamDrawer');
+    tryLoadIpam();
 }
 
 /* ============================
@@ -116,17 +99,33 @@ function toggleIpamDrawer() {
    ============================ */
 
 const ACTION_HANDLERS = {
-    // Accordion drawers
-    'toggle-vm-provision':   () => toggleAccordionDrawer('vmProvisionDrawer'),
-    'toggle-ansible':        () => toggleAccordionDrawer('ansibleOrchestrationDrawer'),
-    'toggle-certificates':   () => toggleAccordionDrawer('certificateManagementDrawer'),
-    'toggle-dns':            () => toggleAccordionDrawer('dnsManagementDrawer'),
-    'toggle-ipam':           toggleIpamDrawer,
+    // Rail view switches
+    'toggle-vm-provision':   () => switchView('vmProvisionDrawer'),
+    'toggle-ansible':        () => switchView('ansibleOrchestrationDrawer'),
+    'toggle-certificates':   () => switchView('certificateManagementDrawer'),
+    'toggle-dns':            () => switchView('dnsManagementDrawer'),
+    'toggle-ipam':           () => { switchView('ipamDrawer'); tryLoadIpam(); },
+    'toggle-vip-manager':    () => switchView('vipManagerDrawer'),
 
     // Simple drawers
     'toggle-telemetry':      toggleTelemetry,
-    'toggle-assets':         toggleAssets,
-    'toggle-vip-manager':    () => toggleAccordionDrawer('vipManagerDrawer'),
+    'toggle-assets':         () => {},  // Assets always visible in Mission Control layout
+    'toggle-terminal':       () => {
+        if (document.body.classList.contains('terminal-max')) {
+            document.body.classList.remove('terminal-max');
+        } else {
+            document.body.classList.toggle('terminal-open');
+        }
+    },
+    'maximize-terminal':     () => {
+        if (document.body.classList.contains('terminal-max')) {
+            document.body.classList.remove('terminal-max');
+            document.body.classList.add('terminal-open');
+        } else {
+            document.body.classList.remove('terminal-open');
+            document.body.classList.add('terminal-max');
+        }
+    },
     'toggle-proxmox-flyout': toggleProxmoxFlyout,
 
     // Template management
@@ -171,7 +170,7 @@ const ACTION_HANDLERS = {
     'vip-destroy-confirm':   confirmVipDestroy,
 
     // Fleet
-    'toggle-fleet':          () => { toggleAccordionDrawer('fleetDrawer'); openFleetDrawer(); },
+    'toggle-fleet':          () => { switchView('fleetDrawer'); openFleetDrawer(); },
     'fleet-mode-quick':      () => fleetSwitchMode('quick'),
     'fleet-mode-custom':     () => fleetSwitchMode('custom'),
     'fleet-add-row':         fleetAddRow,
@@ -221,6 +220,9 @@ document.addEventListener('click', function(e) {
         const flyout = document.getElementById('proxmoxFlyout');
         if (flyout && flyout.contains(e.target)) return;
     }
+
+    // Respect disabled buttons (protect toggle sets disabled on Destroy)
+    if (actionEl.disabled) return;
 
     const handler = ACTION_HANDLERS[action];
     if (handler) {
@@ -393,6 +395,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('certCountStrip'))        loadCertStats();
     if (document.getElementById('vipManagerDrawer'))       initVipManager();
     if (document.getElementById('ipamSubnetSelect'))       loadIpamSubnets();
+
+    // Default to VM Orchestration view on load
+    switchView('vmProvisionDrawer');
+
+    // Open terminal by default
+    document.body.classList.add('terminal-open');
 });
 
 window.addEventListener('load', () => {

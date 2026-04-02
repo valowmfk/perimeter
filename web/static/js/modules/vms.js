@@ -705,6 +705,19 @@ export function loadVmList() {
                 assetCount.textContent = `${vms.length} asset${vms.length === 1 ? '' : 's'}`;
             }
 
+            // Update stat cards
+            const running = vms.filter(v => v.health && (v.health.status === 'running' || v.health.running === true)).length;
+            const stopped = vms.filter(v => !v.health || v.health.status === 'stopped' || v.health.status === 'unreachable' || v.health.status === 'error').length;
+            const runEl = document.getElementById("assetRunningCount");
+            const stopEl = document.getElementById("assetStoppedCount");
+            const tplEl = document.getElementById("assetTemplateCount");
+            if (runEl) runEl.textContent = running;
+            if (stopEl) stopEl.textContent = stopped;
+            if (tplEl) {
+                const tplSelect = document.getElementById("template");
+                tplEl.textContent = tplSelect ? tplSelect.options.length : '-';
+            }
+
             updateProxmoxStripFromVms(vms);
         })
         .catch(err => {
@@ -919,7 +932,7 @@ export function loadVmIds() {
             if (vms.length > 0) {
                 vms.forEach(vm => {
                     const li = document.createElement("li");
-                    li.innerText = `${vm.vmid} \u2014 ${vm.name || ""}`;
+                    li.innerHTML = `<span class="vmid-num">${vm.vmid}</span>${vm.name || ""}`;
                     ul.appendChild(li);
                 });
             } else {

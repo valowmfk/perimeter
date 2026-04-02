@@ -1,35 +1,40 @@
-        <!-- Perimeter Assets Drawer (Terraform State - only visible in Perimeter theme) -->
-        <div id="perimeterAssets" class="q-container q-container-bottom">
-            <div class="q-panel q-panel-wide">
-                <div class="q-panel-controls">
-                    <button type="button"
-                            class="q-telemetry-toggle"
-                            data-action="toggle-assets"
-                            aria-expanded="false"
-                            aria-controls="qAssetsDrawer">
-                        <span class="q-drawer-label"><img src="/static/assets/icon-terraform.svg" alt="" class="q-drawer-icon"> Active Perimeter Assets (Terraform State)</span>
-                        <span id="qAssetsCount" class="q-mission-timer">0 assets</span>
-                    </button>
+<!-- ACTIVE ASSETS (right panel) -->
+<div class="panel-header">
+  <span class="ph-icon">&#9673;</span>
+  Active Assets
+  <span class="ph-count" id="qAssetsCount">0</span>
+</div>
+<div class="panel-body" style="padding: 0;">
+  <!-- Stat cards row -->
+  <div class="card-grid">
+    <div class="stat-card">
+      <div class="sc-label">Running</div>
+      <div class="sc-value" id="assetRunningCount" style="color:var(--green);">-</div>
+    </div>
+    <div class="stat-card">
+      <div class="sc-label">Stopped</div>
+      <div class="sc-value" id="assetStoppedCount" style="color:var(--amber);">-</div>
+    </div>
+    <div class="stat-card">
+      <div class="sc-label">Templates</div>
+      <div class="sc-value" id="assetTemplateCount" style="color:var(--purple);">-</div>
+    </div>
+  </div>
 
-                    <div id="qAssetsDrawer" class="q-telemetry-drawer">
-                        <table class="q-table">
-                            <thead>
-                                <tr>
-                                    <th>VM ID</th>
-                                    <th>Name</th>
-                                    <th>IP</th>
-                                    <th>Group</th>
-                                    <th>Status</th>
-                                    <th>Action</th>
-                                    <th>First Seen</th>
-                                    <th>Last Seen</th>
-                                </tr>
-                            </thead>
-                            <tbody id="vmTableBody">
-                                <tr><td colspan="8">Loading…</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
+  <!-- VM Table -->
+  <table class="data-table q-table">
+    <thead>
+      <tr>
+        <th>VMID</th>
+        <th>Name</th>
+        <th>IP</th>
+        <th>Group</th>
+        <th>Status</th>
+        <th>Actions</th>
+        <th>First Seen</th>
+        <th>Last Seen</th>
+      </tr>
+    </thead>
+    <tbody id="vmTableBody"></tbody>
+  </table>
+</div>

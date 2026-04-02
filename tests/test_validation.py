@@ -28,7 +28,9 @@ _mock_cfg = SimpleNamespace(
     TF_LINUX_STATE_PATH=Path("/tmp/fake/tf/linux.tfstate"),
     TF_VTHUNDER_STATE_PATH=Path("/tmp/fake/tf/vthunder.tfstate"),
     TF_LINUX_TFVARS_PATH=Path("/tmp/fake/tf/linux.tfvars.json"),
+    TF_VYOS_STATE_PATH=Path("/tmp/fake/tf/vyos.tfstate"),
     TF_VTHUNDER_TFVARS_PATH=Path("/tmp/fake/tf/vthunder.tfvars.json"),
+    TF_VYOS_TFVARS_PATH=Path("/tmp/fake/tf/vyos.tfvars.json"),
     VM_TRACK_FILE=Path("/tmp/fake/vm_track.json"),
     cert_domains={"home.klouda.co": "/tmp/fake/certs"},
     ALLOWED_CERT_FILES={"cert.pem", "chain.pem", "fullchain.pem"},
@@ -38,13 +40,30 @@ _mock_cfg = SimpleNamespace(
     NETBOX_URL="https://fake",
     NETBOX_API_TOKEN="",
     NETBOX_CACHE_TTL=300,
+    SUBNETS={"10.1.55.0/24": {"gateway": "10.1.55.1", "vlan": 55}},
+    FEATURES={"dns": True, "ipam": True, "vthunder": True, "ansible": True, "certificates": True},
+    PM_NODE="pve",
     pm_headers=lambda: {},
     netbox_headers=lambda: {},
 )
 
-# Inject mock config before importing shared
+# Inject mock config before importing shared.
+# This mock must stay in sys.modules because validate_vm_params does a lazy
+# `from config import subnet_for_ip` at call time.  Other test modules that
+# import the real config do so before this file runs (alphabetical order),
+# so their references are already cached and unaffected.
+def _mock_subnet_for_ip(ip: str):
+    """Return subnet info if IP falls within a configured subnet, else None."""
+    import ipaddress
+    addr = ipaddress.IPv4Address(ip)
+    for cidr, info in _mock_cfg.SUBNETS.items():
+        if addr in ipaddress.IPv4Network(cidr):
+            return info
+    return None
+
 _mock_config_module = MagicMock()
 _mock_config_module.cfg = _mock_cfg
+_mock_config_module.subnet_for_ip = _mock_subnet_for_ip
 sys.modules["config"] = _mock_config_module
 
 from routes.shared import _valid_hostname, validate_vm_params, is_safe_filename
