@@ -28,7 +28,14 @@ Every feature is **modular** — enable only what you need via environment varia
 
 ## Screenshots
 
-*Coming soon*
+**Mission Control Dashboard** — Icon rail navigation, VM orchestration panel with live Proxmox VMID badges, persistent assets table with health status
+![Dashboard](docs/screenshots/dashboard.png)
+
+**Fleet Deployment & Template Management** — Quick Fleet builder with preview table, Proxmox template management flyout with refresh controls, live terminal streaming
+![Fleet and Templates](docs/screenshots/templates.png)
+
+**Ansible Orchestration** — Playbook selection with YAML viewer, inventory group targeting, live execution output with syntax highlighting
+![Ansible](docs/screenshots/ansible.png)
 
 ## Quick Start
 
