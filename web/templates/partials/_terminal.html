@@ -1,13 +1,12 @@
-            <!-- RIGHT: Live Logging Console (fixed panel) -->
-            <div class="q-terminal">
-                <div class="q-terminal-header">
-                    <div class="q-terminal-title">
-                        Live Logging Console
-                    </div>
-                    <div class="q-terminal-meta">
-                        <span class="q-dot q-dot-green"></span>
-                        live stream
-                    </div>
-                </div>
-                <pre id="terminalLog" role="log" aria-label="Live logging console" aria-live="polite"></pre>
-            </div>
+<!-- TERMINAL -->
+<div class="terminal">
+  <div class="terminal-bar" data-action="toggle-terminal">
+    <span class="terminal-live"></span>
+    <span class="terminal-label">LIVE STREAM</span>
+    <span class="terminal-actions">
+      <button class="terminal-maximize" data-action="maximize-terminal" title="Maximize terminal" aria-label="Maximize terminal">&#9634;</button>
+      <span class="terminal-chevron" id="terminalChevron">&#9650;</span>
+    </span>
+  </div>
+  <pre id="terminalLog" class="terminal-output" role="log" aria-label="Live provisioning output" aria-live="polite"></pre>
+</div>

@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Perimeter — Concept A: Mission Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ── CONCEPT A: MISSION CONTROL ──────────────────────────────────
+     Industrial command center aesthetic. Thin icon rail navigation,
+     hexagonal accent motifs, monospace data displays, slide-up
+     terminal. Everything feels like a hardened operations console
+     built for infrastructure engineers who run real systems.
+     ─────────────────────────────────────────────────────────────── */
+
+  :root {
+    /* From the Perimeter icon */
+    --bg-deep:     #080e1a;
+    --bg-primary:  #0f172a;
+    --bg-elevated: #141e33;
+    --bg-surface:  #1a2540;
+    --bg-hover:    #1e2d4a;
+
+    --cyan:        #06b6d4;
+    --cyan-dim:    rgba(6, 182, 212, 0.15);
+    --cyan-glow:   rgba(6, 182, 212, 0.4);
+    --purple:      #8b5cf6;
+    --purple-dim:  rgba(139, 92, 246, 0.12);
+    --green:       #10b981;
+    --green-dim:   rgba(16, 185, 129, 0.15);
+    --amber:       #f59e0b;
+    --amber-dim:   rgba(245, 158, 11, 0.12);
+    --red:         #ef4444;
+    --red-dim:     rgba(239, 68, 68, 0.12);
+
+    --text-primary:   #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted:     #64748b;
+    --border:         rgba(71, 85, 105, 0.35);
+    --border-active:  rgba(6, 182, 212, 0.5);
+
+    --font-display: 'DM Sans', sans-serif;
+    --font-mono:    'IBM Plex Mono', monospace;
+
+    --rail-width: 64px;
+    --header-height: 52px;
+    --terminal-collapsed: 36px;
+    --terminal-expanded: 280px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: 13px;
+    line-height: 1.5;
+    height: 100vh;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: var(--rail-width) 1fr;
+    grid-template-rows: var(--header-height) 1fr var(--terminal-collapsed);
+    grid-template-areas:
+      "rail header"
+      "rail main"
+      "rail terminal";
+    transition: grid-template-rows 0.3s ease;
+  }
+
+  body.terminal-open {
+    grid-template-rows: var(--header-height) 1fr var(--terminal-expanded);
+  }
+
+  /* ── ICON RAIL ────────────────────────────────────────────────── */
+
+  .rail {
+    grid-area: rail;
+    background: var(--bg-primary);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0;
+    z-index: 10;
+  }
+
+  .rail-logo {
+    width: 100%;
+    height: var(--header-height);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .rail-logo svg {
+    width: 32px;
+    height: 32px;
+  }
+
+  .rail-nav {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+    gap: 2px;
+  }
+
+  .rail-btn {
+    width: 100%;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    position: relative;
+    transition: color 0.2s, background 0.2s;
+    font-size: 18px;
+  }
+
+  .rail-btn:hover {
+    color: var(--text-secondary);
+    background: var(--bg-elevated);
+  }
+
+  .rail-btn.active {
+    color: var(--cyan);
+    background: var(--cyan-dim);
+  }
+
+  .rail-btn.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 8px;
+    bottom: 8px;
+    width: 3px;
+    background: var(--cyan);
+    border-radius: 0 2px 2px 0;
+  }
+
+  .rail-btn .rail-tooltip {
+    position: absolute;
+    left: calc(100% + 8px);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: opacity 0.15s, transform 0.15s;
+    z-index: 100;
+  }
+
+  .rail-btn:hover .rail-tooltip {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .rail-separator {
+    height: 1px;
+    background: var(--border);
+    margin: 6px 12px;
+  }
+
+  .rail-bottom {
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+    width: 100%;
+  }
+
+  /* ── HEADER ───────────────────────────────────────────────────── */
+
+  .header {
+    grid-area: header;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 20px;
+    z-index: 5;
+  }
+
+  .header-title {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    color: var(--text-primary);
+  }
+
+  .header-title span {
+    color: var(--cyan);
+  }
+
+  .header-sep {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+  }
+
+  .header-status {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .status-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .status-dot.warn { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .status-dot.err  { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+
+  .header-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .header-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    padding: 2px 8px;
+    border: 1px solid var(--cyan-glow);
+    border-radius: 3px;
+    background: var(--cyan-dim);
+  }
+
+  /* ── MAIN CONTENT ─────────────────────────────────────────────── */
+
+  .main {
+    grid-area: main;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr;
+    gap: 1px;
+    background: var(--border);
+    overflow: hidden;
+  }
+
+  .panel {
+    background: var(--bg-deep);
+    overflow-y: auto;
+    position: relative;
+  }
+
+  .panel-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+
+  .panel-header .ph-icon {
+    color: var(--cyan);
+    font-size: 14px;
+  }
+
+  .panel-header .ph-count {
+    margin-left: auto;
+    color: var(--text-muted);
+    font-size: 10px;
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+  }
+
+  .panel-body {
+    padding: 16px 20px;
+  }
+
+  .panel-full {
+    grid-column: 1 / -1;
+  }
+
+  /* ── FORM ELEMENTS ────────────────────────────────────────────── */
+
+  .field-group {
+    margin-bottom: 14px;
+  }
+
+  .field-label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+  }
+
+  .field-input,
+  .field-select {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+
+  .field-input:focus,
+  .field-select:focus {
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 2px var(--cyan-dim);
+  }
+
+  .field-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748b'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 28px;
+  }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .field-row-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--text-muted);
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, rgba(6,182,212,0.2), rgba(139,92,246,0.15));
+    border-color: var(--cyan-glow);
+    color: var(--cyan);
+  }
+
+  .btn-primary:hover {
+    background: linear-gradient(135deg, rgba(6,182,212,0.3), rgba(139,92,246,0.2));
+    box-shadow: 0 0 16px var(--cyan-dim);
+  }
+
+  .btn-sm {
+    padding: 4px 10px;
+    font-size: 10px;
+  }
+
+  /* ── HEXAGONAL SECTION ACCENTS ─────────────────────────────────── */
+
+  .hex-accent {
+    position: relative;
+    padding-left: 16px;
+  }
+
+  .hex-accent::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 2px;
+    width: 8px;
+    height: 9px;
+    background: var(--cyan);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    opacity: 0.7;
+  }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+  }
+
+  /* ── DATA TABLE ───────────────────────────────────────────────── */
+
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+
+  .data-table th {
+    text-align: left;
+    padding: 6px 10px;
+    font-weight: 500;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-primary);
+    position: sticky;
+    top: 36px;
+    z-index: 1;
+  }
+
+  .data-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid rgba(71,85,105,0.15);
+    color: var(--text-secondary);
+  }
+
+  .data-table tr:hover td {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+  }
+
+  .ip-cell {
+    color: var(--cyan);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .vmid-cell {
+    color: var(--purple);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+
+  .badge-ok {
+    background: var(--green-dim);
+    color: var(--green);
+    border: 1px solid rgba(16,185,129,0.3);
+  }
+
+  .badge-warn {
+    background: var(--amber-dim);
+    color: var(--amber);
+    border: 1px solid rgba(245,158,11,0.3);
+  }
+
+  .badge-err {
+    background: var(--red-dim);
+    color: var(--red);
+    border: 1px solid rgba(239,68,68,0.3);
+  }
+
+  /* ── TERMINAL DRAWER ──────────────────────────────────────────── */
+
+  .terminal {
+    grid-area: terminal;
+    background: var(--bg-deep);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    z-index: 8;
+    overflow: hidden;
+    transition: height 0.3s ease;
+  }
+
+  .terminal-bar {
+    height: var(--terminal-collapsed);
+    min-height: var(--terminal-collapsed);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 10px;
+    background: var(--bg-primary);
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .terminal-bar:hover {
+    background: var(--bg-elevated);
+  }
+
+  .terminal-live {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  .terminal-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+  }
+
+  .terminal-chevron {
+    margin-left: auto;
+    color: var(--text-muted);
+    font-size: 12px;
+    transition: transform 0.3s;
+  }
+
+  body.terminal-open .terminal-chevron {
+    transform: rotate(180deg);
+  }
+
+  .terminal-output {
+    flex: 1;
+    padding: 10px 20px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.7;
+    overflow-y: auto;
+    color: var(--text-secondary);
+  }
+
+  .terminal-output .t-ok      { color: #7cfc00; }
+  .terminal-output .t-changed { color: #ffd700; }
+  .terminal-output .t-err     { color: #ff4500; }
+  .terminal-output .t-info    { color: var(--cyan); }
+  .terminal-output .t-dim     { color: var(--text-muted); }
+
+  /* ── HEX GRID BACKGROUND (subtle) ─────────────────────────────── */
+
+  .main::before {
+    content: '';
+    position: fixed;
+    top: 0; left: var(--rail-width); right: 0; bottom: 0;
+    background-image:
+      radial-gradient(circle at 25% 25%, rgba(6,182,212,0.03) 0%, transparent 50%),
+      radial-gradient(circle at 75% 75%, rgba(139,92,246,0.02) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── SCROLLBAR ────────────────────────────────────────────────── */
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* ── CARD GRID (for assets / fleet) ────────────────────────────── */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .stat-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+    transition: border-color 0.2s;
+  }
+
+  .stat-card:hover {
+    border-color: var(--cyan-glow);
+  }
+
+  .stat-card .sc-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  .stat-card .sc-value {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 300;
+    color: var(--text-primary);
+  }
+
+  .stat-card .sc-value .sc-unit {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: 2px;
+  }
+
+  /* ── PROVISION FORM SPECIAL ────────────────────────────────────── */
+
+  .resource-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+  }
+
+  .resource-bar .rb-track {
+    flex: 1;
+    height: 4px;
+    background: var(--bg-surface);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .resource-bar .rb-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--cyan), var(--purple));
+    transition: width 0.3s ease;
+  }
+
+  .resource-bar .rb-val {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    min-width: 40px;
+    text-align: right;
+  }
+
+  /* ── VALIDATION INDICATORS ─────────────────────────────────────── */
+
+  .field-with-validation {
+    position: relative;
+  }
+
+  .field-with-validation .v-icon {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 13px;
+  }
+
+  .v-ok   { color: var(--green); }
+  .v-err  { color: var(--red); }
+  .v-load { color: var(--text-muted); animation: pulse-dot 1s infinite; }
+</style>
+</head>
+<body class="terminal-open">
+
+  <!-- ── ICON RAIL ──────────────────────────────────────────── -->
+  <nav class="rail">
+    <div class="rail-logo">
+      <svg width="32" height="32" viewBox="0 0 256 256" fill="none">
+        <rect width="256" height="256" fill="transparent" rx="40"/>
+        <path d="M128 30L198 71.5V154.5L128 196L58 154.5V71.5L128 30Z" stroke="url(#rg1)" stroke-width="3" fill="none"/>
+        <path d="M128 55L180 85V145L128 175L76 145V85L128 55Z" stroke="url(#rg2)" stroke-width="2" fill="none" opacity="0.6"/>
+        <circle cx="128" cy="113" r="20" fill="none" stroke="#06b6d4" stroke-width="1.5" opacity="0.5"/>
+        <path d="M128 100V126M115 113H141M120 105L136 121M136 105L120 121" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="128" cy="30" r="4" fill="#06b6d4"/><circle cx="198" cy="71.5" r="4" fill="#06b6d4"/>
+        <circle cx="198" cy="154.5" r="4" fill="#06b6d4"/><circle cx="128" cy="196" r="4" fill="#06b6d4"/>
+        <circle cx="58" cy="154.5" r="4" fill="#06b6d4"/><circle cx="58" cy="71.5" r="4" fill="#06b6d4"/>
+        <defs>
+          <linearGradient id="rg1" x1="58" y1="30" x2="198" y2="196"><stop stop-color="#06b6d4"/><stop offset=".5" stop-color="#8b5cf6"/><stop offset="1" stop-color="#06b6d4"/></linearGradient>
+          <linearGradient id="rg2" x1="76" y1="55" x2="180" y2="175"><stop stop-color="#06b6d4"/><stop offset="1" stop-color="#10b981"/></linearGradient>
+        </defs>
+      </svg>
+    </div>
+
+    <div class="rail-nav">
+      <button class="rail-btn active">
+        <span>&#9649;</span>
+        <span class="rail-tooltip">VM Orchestration</span>
+      </button>
+      <button class="rail-btn">
+        <span>&#9881;</span>
+        <span class="rail-tooltip">Fleet Deployment</span>
+      </button>
+      <button class="rail-btn">
+        <span>&#9654;</span>
+        <span class="rail-tooltip">Ansible</span>
+      </button>
+
+      <div class="rail-separator"></div>
+
+      <button class="rail-btn">
+        <span>&#9919;</span>
+        <span class="rail-tooltip">Certificates</span>
+      </button>
+      <button class="rail-btn">
+        <span>&#8982;</span>
+        <span class="rail-tooltip">DNS</span>
+      </button>
+      <button class="rail-btn">
+        <span>&#9673;</span>
+        <span class="rail-tooltip">IPAM</span>
+      </button>
+      <button class="rail-btn">
+        <span>&#9878;</span>
+        <span class="rail-tooltip">vThunder SLB</span>
+      </button>
+    </div>
+
+    <div class="rail-bottom">
+      <button class="rail-btn">
+        <span>&#9881;</span>
+        <span class="rail-tooltip">Settings</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── HEADER ─────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-title"><span>PERIMETER</span> // Mission Control</div>
+    <div class="header-sep"></div>
+    <div class="header-status">
+      <div class="status-chip">
+        <span class="status-dot"></span>
+        <span>goldfinger:8006</span>
+      </div>
+      <div class="status-chip">
+        <span class="status-dot"></span>
+        <span>12 VMs</span>
+      </div>
+      <div class="status-chip">
+        <span class="status-dot warn"></span>
+        <span>2 certs expiring</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="header-badge">v3.3</span>
+    </div>
+  </header>
+
+  <!-- ── MAIN CONTENT ───────────────────────────────────────── -->
+  <div class="main">
+
+    <!-- LEFT PANEL: Active workspace (provision form) -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="ph-icon">&#9649;</span>
+        VM Orchestration
+      </div>
+      <div class="panel-body">
+        <div class="section-title hex-accent">Provision New VM</div>
+
+        <div class="field-group">
+          <label class="field-label">Workload Type</label>
+          <select class="field-select">
+            <option>Linux VM</option>
+            <option>A10 vThunder</option>
+            <option>VyOS Router</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Template</label>
+          <select class="field-select">
+            <option>rocky9-template (9200)</option>
+            <option>ubuntu2404-template (9201)</option>
+            <option>debian12-template (9202)</option>
+          </select>
+        </div>
+
+        <div class="field-row" style="margin-bottom: 14px;">
+          <div class="field-group" style="margin-bottom:0;">
+            <label class="field-label">Hostname</label>
+            <div class="field-with-validation">
+              <input class="field-input" type="text" value="qrocky110" placeholder="hostname">
+              <span class="v-icon v-ok">&#10003;</span>
+            </div>
+          </div>
+          <div class="field-group" style="margin-bottom:0;">
+            <label class="field-label">IP Address</label>
+            <div class="field-with-validation">
+              <input class="field-input" type="text" value="10.1.55.110" placeholder="10.x.x.x">
+              <span class="v-icon v-ok">&#10003;</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-row field-row-3" style="margin-bottom: 14px;">
+          <div class="field-group" style="margin-bottom:0;">
+            <label class="field-label">VM ID</label>
+            <input class="field-input" type="text" value="510">
+          </div>
+          <div class="field-group" style="margin-bottom:0;">
+            <label class="field-label">Subnet</label>
+            <select class="field-select">
+              <option>10.1.55.0/24</option>
+            </select>
+          </div>
+          <div class="field-group" style="margin-bottom:0;">
+            <label class="field-label">Bridge</label>
+            <select class="field-select">
+              <option>vmbr0</option>
+              <option>vmbr1</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="section-title hex-accent" style="margin-top: 20px;">Resources</div>
+        <div class="field-group">
+          <label class="field-label">CPU Cores</label>
+          <div class="resource-bar">
+            <div class="rb-track"><div class="rb-fill" style="width: 15%"></div></div>
+            <span class="rb-val">2</span>
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Memory</label>
+          <div class="resource-bar">
+            <div class="rb-track"><div class="rb-fill" style="width: 25%"></div></div>
+            <span class="rb-val">4096<span style="color:var(--text-muted);font-size:9px;"> MB</span></span>
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Disk</label>
+          <div class="resource-bar">
+            <div class="rb-track"><div class="rb-fill" style="width: 12%"></div></div>
+            <span class="rb-val">32<span style="color:var(--text-muted);font-size:9px;"> GB</span></span>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" style="width: 100%; margin-top: 16px; justify-content: center;">
+          INITIATE PROVISIONING
+        </button>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL: Active VMs / Assets -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="ph-icon">&#9673;</span>
+        Active Assets
+        <span class="ph-count">12 VMs</span>
+      </div>
+      <div class="panel-body" style="padding: 0;">
+
+        <!-- Stat cards -->
+        <div class="card-grid" style="padding: 16px 20px;">
+          <div class="stat-card">
+            <div class="sc-label">Running</div>
+            <div class="sc-value" style="color:var(--green);">10</div>
+          </div>
+          <div class="stat-card">
+            <div class="sc-label">Stopped</div>
+            <div class="sc-value" style="color:var(--amber);">1</div>
+          </div>
+          <div class="stat-card">
+            <div class="sc-label">Templates</div>
+            <div class="sc-value" style="color:var(--purple);">4</div>
+          </div>
+          <div class="stat-card">
+            <div class="sc-label">Provisioning</div>
+            <div class="sc-value" style="color:var(--cyan);">1</div>
+          </div>
+        </div>
+
+        <!-- VM Table -->
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>VMID</th>
+              <th>Name</th>
+              <th>IP</th>
+              <th>Status</th>
+              <th>Type</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="vmid-cell">500</td>
+              <td>snmp</td>
+              <td class="ip-cell">10.1.55.10</td>
+              <td><span class="badge badge-ok">running</span></td>
+              <td>linux</td>
+              <td><button class="btn btn-sm">&#8943;</button></td>
+            </tr>
+            <tr>
+              <td class="vmid-cell">501</td>
+              <td>pihole-01</td>
+              <td class="ip-cell">10.1.55.11</td>
+              <td><span class="badge badge-ok">running</span></td>
+              <td>linux</td>
+              <td><button class="btn btn-sm">&#8943;</button></td>
+            </tr>
+            <tr>
+              <td class="vmid-cell">502</td>
+              <td>netbox</td>
+              <td class="ip-cell">10.1.55.12</td>
+              <td><span class="badge badge-ok">running</span></td>
+              <td>linux</td>
+              <td><button class="btn btn-sm">&#8943;</button></td>
+            </tr>
+            <tr>
+              <td class="vmid-cell">600</td>
+              <td>vth-prod-01</td>
+              <td class="ip-cell">10.1.55.60</td>
+              <td><span class="badge badge-ok">running</span></td>
+              <td>vthunder</td>
+              <td><button class="btn btn-sm">&#8943;</button></td>
+            </tr>
+            <tr>
+              <td class="vmid-cell">700</td>
+              <td>vyos-core</td>
+              <td class="ip-cell">10.1.55.1</td>
+              <td><span class="badge badge-ok">running</span></td>
+              <td>vyos</td>
+              <td><button class="btn btn-sm">&#8943;</button></td>
+            </tr>
+            <tr>
+              <td class="vmid-cell">510</td>
+              <td>qrocky110</td>
+              <td class="ip-cell">10.1.55.110</td>
+              <td><span class="badge badge-warn">provisioning</span></td>
+              <td>linux</td>
+              <td><button class="btn btn-sm">&#8943;</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── TERMINAL ───────────────────────────────────────────── -->
+  <div class="terminal">
+    <div class="terminal-bar" onclick="document.body.classList.toggle('terminal-open')">
+      <span class="terminal-live"></span>
+      <span class="terminal-label">LIVE STREAM</span>
+      <span class="terminal-label" style="color:var(--text-muted);">// qrocky110 &mdash; provisioning</span>
+      <span class="terminal-chevron">&#9650;</span>
+    </div>
+    <pre class="terminal-output"><span class="t-dim">[14:32:01]</span> <span class="t-info">[PERIMETER-PROVISION]</span> Starting provision for qrocky110 (510)
+<span class="t-dim">[14:32:02]</span> <span class="t-info">[TERRAFORM]</span> Initializing provider plugins...
+<span class="t-dim">[14:32:04]</span> <span class="t-ok">[TERRAFORM]</span> Plan: 1 to add, 0 to change, 0 to destroy
+<span class="t-dim">[14:32:05]</span> <span class="t-info">[TERRAFORM]</span> Applying...
+<span class="t-dim">[14:32:18]</span> <span class="t-ok">[TERRAFORM]</span> Apply complete! Resources: 1 added
+<span class="t-dim">[14:32:19]</span> <span class="t-info">[BOOTSTRAP]</span> Waiting for SSH on 10.1.55.110...
+<span class="t-dim">[14:32:45]</span> <span class="t-ok">[BOOTSTRAP]</span> SSH available
+<span class="t-dim">[14:32:46]</span> <span class="t-info">[ANSIBLE]</span> Running 01-linux-bootstrap.yml
+<span class="t-dim">[14:33:12]</span> <span class="t-changed">[ANSIBLE]</span> changed: [qrocky110] => set hostname
+<span class="t-dim">[14:33:28]</span> <span class="t-ok">[ANSIBLE]</span> ok: [qrocky110] => configure network
+<span class="t-dim">[14:33:55]</span> <span class="t-ok">[PERIMETER-PROVISION]</span> Provision complete &#10003;</pre>
+  </div>
+
+  <script>
+    // Rail navigation click handler
+    document.querySelectorAll('.rail-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.rail-nav .rail-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>
