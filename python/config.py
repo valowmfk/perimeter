@@ -3,17 +3,43 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict
 
-from utils.sops_env import load_env
+from utils.sops_env import load_env, SopsEnvError
 
-# Load SOPS-encrypted secrets into the process environment so that
-# os.getenv() picks them up even without the systemd EnvironmentFile.
-_sops_env = load_env()
+
+def _fatal(message: str) -> None:
+    """Abort startup loudly. stderr lands in the journal; exit(1) trips
+    systemd's Restart=on-failure so a transient hiccup self-heals and a
+    persistent one shows as a failed unit — never a silent half-boot."""
+    sys.stderr.write(f"\n[perimeter] FATAL: {message}\n")
+    raise SystemExit(1)
+
+
+# Load SOPS-encrypted secrets into the process environment so that os.getenv()
+# picks them up even without the systemd EnvironmentFile. Fail fast and loud if
+# we're set up to use SOPS but decryption fails — better a visible crash than a
+# half-configured boot with empty secrets (the 2026-06-12 Proxmox outage). When
+# no age key is configured (tests, fresh checkouts, CI) we stay best-effort.
+_age_key = os.getenv("SOPS_AGE_KEY_FILE", "")
+_sops_expected = bool(_age_key) and Path(_age_key).is_file()
+
+try:
+    _sops_env = load_env(required=_sops_expected)
+except SopsEnvError as _e:
+    _fatal(str(_e))
+
 for _k, _v in _sops_env.items():
     os.environ.setdefault(_k, _v)
+
+# Surface an empty/partial secrets file immediately rather than 503-ing later.
+if _sops_expected:
+    _missing = [_k for _k in ("PM_API_TOKEN_ID", "PM_API_TOKEN_SECRET") if not os.getenv(_k)]
+    if _missing:
+        _fatal(f"secrets decrypted but missing required keys: {', '.join(_missing)}")
 
 
 def _parse_subnets_env() -> dict:
