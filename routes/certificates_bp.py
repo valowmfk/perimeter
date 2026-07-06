@@ -434,7 +434,10 @@ def cert_execute():
 
     cred_file = f"/certbot-{base_domain.replace('.', '-')}.ini"
 
-    cert_args = ["certonly", "--dns-cloudflare", "--dns-cloudflare-credentials", cred_file]
+    cert_args = [
+        "certonly", "--dns-cloudflare", "--dns-cloudflare-credentials", cred_file,
+        "--dns-cloudflare-propagation-seconds", str(cfg.CERTBOT_DNS_PROPAGATION_SECONDS),
+    ]
     for d in domains:
         cert_args.extend(["-d", d])
     cert_args.extend(["--cert-name", domains[0]])

@@ -149,6 +149,13 @@ class Config:
     CERTBOT_EMAIL: str = field(
         default_factory=lambda: os.getenv("CERTBOT_EMAIL", "")
     )
+    # How long certbot waits for DNS-01 TXT records to propagate before asking
+    # the CA to validate. The cloudflare plugin defaults to 10s, which races
+    # brand-new challenge names against Let's Encrypt's multi-perspective
+    # validation and negative caching (NXDOMAIN) — 60s clears that margin.
+    CERTBOT_DNS_PROPAGATION_SECONDS: int = field(
+        default_factory=lambda: int(os.getenv("CERTBOT_DNS_PROPAGATION_SECONDS", "60"))
+    )
     ALLOWED_CERT_FILES: frozenset = frozenset(
         {"cert.pem", "chain.pem", "fullchain.pem", "privkey.pem"}
     )
