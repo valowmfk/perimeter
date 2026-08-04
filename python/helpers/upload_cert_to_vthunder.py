@@ -26,6 +26,20 @@ COMPONENT = "VTH-CERT"
 requests.packages.urllib3.disable_warnings()
 
 
+def _axapi_json(resp):
+    """Parse an AXAPI response body, tolerating empty/no-content success.
+
+    ACOS returns an empty body (HTTP 204 / no content) for actions like
+    ssl-cert/ssl-key import; a naked resp.json() then raises
+    "Expecting value: line 1 column 1 (char 0)" even though the operation
+    succeeded. Mirror axapi.client.AxapiClient: treat a 2xx empty body as {}.
+    Call after resp.raise_for_status() so HTTP errors are already surfaced.
+    """
+    if resp.status_code == 204 or not resp.text.strip():
+        return {}
+    return resp.json()
+
+
 def authenticate(host, port, username, password):
     """Authenticate to vThunder and return auth token."""
     url = f"https://{host}:{port}/axapi/v3/auth"
@@ -49,7 +63,7 @@ def switch_partition(host, port, token, partition):
     payload = {"active-partition": {"curr_part_name": partition}}
     resp = requests.post(url, json=payload, headers={"Authorization": f"A10 {token}"}, verify=False)
     resp.raise_for_status()
-    return resp.json()
+    return _axapi_json(resp)
 
 
 def upload_certificate(host, port, token, cert_name, cert_file):
@@ -75,7 +89,7 @@ def upload_certificate(host, port, token, cert_name, cert_file):
 
     resp = requests.post(url, files=files, headers={"Authorization": f"A10 {token}"}, verify=False)
     resp.raise_for_status()
-    return resp.json()
+    return _axapi_json(resp)
 
 
 def upload_key(host, port, token, cert_name, key_file):
@@ -100,7 +114,7 @@ def upload_key(host, port, token, cert_name, key_file):
 
     resp = requests.post(url, files=files, headers={"Authorization": f"A10 {token}"}, verify=False)
     resp.raise_for_status()
-    return resp.json()
+    return _axapi_json(resp)
 
 
 def delete_certificate(host, port, token, cert_name):
@@ -111,7 +125,7 @@ def delete_certificate(host, port, token, cert_name):
         "Content-Type": "application/json",
     }, verify=False)
     resp.raise_for_status()
-    return resp.json()
+    return _axapi_json(resp)
 
 
 def main():
