@@ -437,6 +437,12 @@ def cert_execute():
     cert_args = [
         "certonly", "--dns-cloudflare", "--dns-cloudflare-credentials", cred_file,
         "--dns-cloudflare-propagation-seconds", str(cfg.CERTBOT_DNS_PROPAGATION_SECONDS),
+        # certbot runs as root inside the container and writes privkey as
+        # root-owned 0600, which this (non-root) service then can't read — cert
+        # download and vThunder deploy 500 on PermissionError. Chown the tree
+        # back to the service user on issuance/renewal. Runs in-container as
+        # root; numeric uid/gid map to the host user via the bind mount.
+        "--deploy-hook", f"chown -R {os.getuid()}:{os.getgid()} /etc/letsencrypt",
     ]
     for d in domains:
         cert_args.extend(["-d", d])
