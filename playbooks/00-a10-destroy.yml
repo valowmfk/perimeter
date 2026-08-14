@@ -1,76 +1,78 @@
 ---
-- name: Delete SLB Servers, Service Group and Virtual Server
+- name: Delete Full SLB Config
   connection: local
   hosts: all_vthunder
-  # a10.acos_axapi modules connect over aXAPI and require the device
-  # coordinates as module args (ansible_host/username/password/port, all
-  # required=True). The collection ships no action-group, so apply them
-  # per-module via an anchored default sourced from inventory vars.
-  # Note: inventory uses ansible_user; the modules want ansible_username.
+  # Same connection wiring as 00-a10-build.yml. Every module used below must be
+  # listed here or it fails with "missing required arguments: ansible_host, ...".
   module_defaults:
-    a10.acos_axapi.a10_slb_server: &a10_conn
+    a10.acos_axapi.a10_slb_virtual_server: &a10_conn
       ansible_host: "{{ ansible_host }}"
       ansible_username: "{{ ansible_user }}"
       ansible_password: "{{ ansible_password }}"
       ansible_port: "{{ ansible_port }}"
-    a10.acos_axapi.a10_health_monitor: *a10_conn
-    a10.acos_axapi.a10_health_monitor_method_http: *a10_conn
     a10.acos_axapi.a10_slb_service_group: *a10_conn
-    a10.acos_axapi.a10_slb_virtual_server: *a10_conn
+    a10.acos_axapi.a10_slb_server: *a10_conn
+    a10.acos_axapi.a10_health_monitor: *a10_conn
+    a10.acos_axapi.a10_slb_template_client_ssl: *a10_conn
+    a10.acos_axapi.a10_slb_template_server_ssl: *a10_conn
+    a10.acos_axapi.a10_slb_template_persist_cookie: *a10_conn
+  # Teardown runs in reverse dependency order: the virtual server first (it
+  # references the service group + templates), then the service group (it
+  # references the servers + monitor), then servers, monitor, and finally the
+  # templates. The www_klouda_work certificate/key are NOT removed here — they
+  # are managed by the certificate deploy process and other configs may bind
+  # them; deleting the client-ssl template only removes the template, not the cert.
   tasks:
-    - name: Delete SLB virtual server
-      a10.acos_axapi.a10_slb_virtual_server:
-        state: absent
-        a10_partition: automation
-        name: Automation-VIP
-        ip_address: 10.127.70.10
-        port_list:
-          - port_number: 80
-            protocol: http
-            service_group: auto_websg
-            auto: true
+  - name: Delete SLB virtual server
+    a10.acos_axapi.a10_slb_virtual_server:
+      state: absent
+      a10_partition: automation
+      name: Automation-VIP
 
-    - name: Delete SLB Service Group
-      a10.acos_axapi.a10_slb_service_group:
-        state: absent
-        a10_partition: automation
-        name: auto_websg
-        protocol: tcp
-        member_list:
-          - name: Auto-websrv1
-            port: 80
-          - name: Auto-websrv2
-            port: 80
-          - name: Auto-websrv3
-            port: 80
+  - name: Delete SLB service group
+    a10.acos_axapi.a10_slb_service_group:
+      state: absent
+      a10_partition: automation
+      name: auto_websg
 
-    - name: Delete SLB Server 1
-      a10.acos_axapi.a10_slb_server:
-        state: absent
-        a10_partition: automation
-        name: Auto-websrv1
-        host: 10.127.70.31
+  - name: Delete SLB Server 1
+    a10.acos_axapi.a10_slb_server:
+      state: absent
+      a10_partition: automation
+      name: sslsrv1
 
-    - name: Delete SLB Server 2
-      a10.acos_axapi.a10_slb_server:
-        state: absent
-        a10_partition: automation
-        name: Auto-websrv2
-        host: 10.127.70.32
+  - name: Delete SLB Server 2
+    a10.acos_axapi.a10_slb_server:
+      state: absent
+      a10_partition: automation
+      name: sslsrv2
 
-    - name: Delete SLB Server 3
-      a10.acos_axapi.a10_slb_server:
-        state: absent
-        a10_partition: automation
-        name: Auto-websrv3
-        host: 10.127.70.33
+  - name: Delete SLB Server 3
+    a10.acos_axapi.a10_slb_server:
+      state: absent
+      a10_partition: automation
+      name: sslsrv3
 
-    - name: Delete a10.acos_axapi.a10_health_monitor Name and Interval
-      a10.acos_axapi.a10_health_monitor:
-        state: absent
-        a10_partition: automation
-        name: port-80-hm
-        retry: 2
-        up_retry: 4
-        interval: 5
-        timeout: 1
+  - name: Delete health monitor (removes its https method too)
+    a10.acos_axapi.a10_health_monitor:
+      state: absent
+      a10_partition: automation
+      name: port-443-hm
+
+  - name: Delete Client SSL Template (cert/key are left in place)
+    a10.acos_axapi.a10_slb_template_client_ssl:
+      state: absent
+      a10_partition: automation
+      name: www_klouda_work_client_ssl
+
+  - name: Delete Server SSL Template
+    a10.acos_axapi.a10_slb_template_server_ssl:
+      state: absent
+      a10_partition: automation
+      name: server-encrypt
+
+  - name: Delete Cookie Persistence Template
+    a10.acos_axapi.a10_slb_template_persist_cookie:
+      state: absent
+      a10_partition: automation
+      name: a10-k6-persist
