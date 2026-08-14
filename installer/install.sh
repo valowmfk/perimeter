@@ -227,6 +227,19 @@ fi
 # Ensure all installed binaries are findable for the Python setup
 export PATH="/usr/local/bin:$HOME/.local/bin:$PATH"
 
+# ── Ansible Collections ───────────────────────
+header "Installing Ansible collections"
+
+if [[ -f "$INSTALL_DIR/collections/requirements.yml" ]]; then
+    info "Installing pinned collections (collections/requirements.yml)..."
+    # --force so a pinned version replaces any mismatched one already present;
+    # the a10 collection is pinned to match the vThunders' ACOS version.
+    run_quiet ansible-galaxy collection install -r "$INSTALL_DIR/collections/requirements.yml" --force
+    ok "Ansible collections installed"
+else
+    warn "collections/requirements.yml not found — skipping collection install"
+fi
+
 # ── Docker (optional — checked during Python setup) ──
 header "Checking Docker"
 

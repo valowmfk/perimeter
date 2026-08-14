@@ -1,0 +1,16 @@
+---
+# Ansible collections required by Perimeter.
+#
+# Pinned intentionally: the a10.acos_axapi collection MUST match the ACOS version
+# running on the managed vThunders — module names and parameter schemas differ
+# across ACOS releases (e.g. a10_slb_template_persist_cookie vs
+# ...persistence_cookie, cert/key vs certificate_list). Version 6.0.8-122225
+# targets ACOS 6.0.8.
+#
+# NOTE: `ansible-galaxy install --upgrade` will NOT pick these up automatically —
+# the build suffix (-122225) makes them semver pre-releases. Bump this pin in
+# lockstep with vThunder ACOS upgrades, then re-run:
+#   ansible-galaxy collection install -r collections/requirements.yml --force
+collections:
+  - name: a10.acos_axapi
+    version: 6.0.8-122225
