@@ -1,0 +1,76 @@
+---
+# Enforce management DNS on Perimeter cloud-init Linux hosts.
+#
+# These VMs render /etc/resolv.conf via cloud-init and set NetworkManager
+# dns=none (NM does NOT manage resolv.conf). So the correct, persistent fix is
+# to write /etc/resolv.conf directly:
+#   * NM won't clobber it (dns=none)
+#   * cloud-init only regenerates it on a fresh provision / `cloud-init clean`,
+#     and the Terraform tfvars are already 10.1.55.10/.11, so a rebuild
+#     converges on the same result.
+#
+# Idempotent (only writes when the nameserver set differs) and --check friendly.
+# Guard: skips hosts where NetworkManager DOES manage resolv.conf (dns != none)
+# so we never fight NM on hosts it owns.
+#
+# Usage:
+#   # dry-run one host (safe):
+#   ansible-playbook -i inventories/inventory.yml playbooks/enforce-mgmt-dns.yml \
+#     -l a10bot.home.klouda.co --check --diff
+#   # apply to the affected set:
+#   ansible-playbook -i inventories/inventory.yml playbooks/enforce-mgmt-dns.yml \
+#     -l 'kasm.home.klouda.co,pihole09.home.klouda.co,peri-dev.home.klouda.co,a10bot.home.klouda.co'
+#   # override resolvers/search per run/group/host:
+#   ... -e '{"mgmt_dns":["10.1.55.10","10.1.55.11"],"dns_search":"home.klouda.co"}'
+
+- name: Enforce management DNS (cloud-init resolv.conf)
+  hosts: all
+  gather_facts: false
+  become: false        # reads need no root; only the resolv.conf write elevates
+  vars:
+    mgmt_dns:                       # single source of truth — the pi-holes
+      - 10.1.55.10
+      - 10.1.55.11
+    dns_search: home.klouda.co
+  tasks:
+    - name: Check how resolv.conf is managed (NetworkManager dns mode)
+      ansible.builtin.command: "grep -rhoE 'dns[[:space:]]*=[[:space:]]*[a-z]+' /etc/NetworkManager/"
+      register: _nmdns
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Skip hosts where NetworkManager owns resolv.conf
+      ansible.builtin.meta: end_host
+      when: "'dns = none' not in (_nmdns.stdout | default(''))"
+
+    - name: Read current nameservers
+      ansible.builtin.command: "awk '/^nameserver/ {print $2}' /etc/resolv.conf"
+      register: _curns
+      changed_when: false
+      check_mode: false
+
+    - name: Report current vs desired
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} current={{ _curns.stdout_lines }} desired={{ mgmt_dns }}"
+
+    - name: Write managed /etc/resolv.conf
+      become: true
+      ansible.builtin.copy:
+        dest: /etc/resolv.conf
+        follow: false
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          # Managed by Perimeter (playbooks/enforce-mgmt-dns.yml) — do not edit by hand.
+          search {{ dns_search }}
+          {% for ns in mgmt_dns %}
+          nameserver {{ ns }}
+          {% endfor %}
+      when: _curns.stdout_lines | sort != (mgmt_dns | sort)
+      register: _written
+
+    - name: Result
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} -> {{ mgmt_dns if _written is changed else _curns.stdout_lines }} ({{ 'updated' if _written is changed else 'already correct' }})"
