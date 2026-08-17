@@ -112,6 +112,9 @@ def provision_linux_vm(
     from config import subnet_for_ip
     subnet_info = subnet_for_ip(ip)
     gateway = env.get("LINUX_GATEWAY") or (subnet_info["gateway"] if subnet_info else None)
+    # DNS source of truth is the per-subnet PERIMETER_SUBNETS "dns" list (what the
+    # installer manages). LINUX_DNS_SERVERS (plural, comma-separated) is an optional
+    # global override — note the trailing S; a singular LINUX_DNS_SERVER is ignored.
     dns_env = env.get("LINUX_DNS_SERVERS", "")
     if dns_env:
         dns_servers = [s.strip() for s in dns_env.split(",")]
