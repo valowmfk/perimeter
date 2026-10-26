@@ -105,21 +105,39 @@
 
                                 <table class="q-table" id="updatesArgoTable">
                                     <thead>
-                                        <tr><th>Application</th><th>Sync</th><th>Health</th><th>Revision</th></tr>
+                                        <tr><th>Application</th><th>Sync</th><th>Health</th><th>Revision</th><th></th></tr>
                                     </thead>
                                     <tbody id="updatesArgoBody">
-                                        <tr><td colspan="4" style="opacity:.6">Loading…</td></tr>
+                                        <tr><td colspan="5" style="opacity:.6">Loading…</td></tr>
                                     </tbody>
                                 </table>
 
                                 <p class="q-summary-line" style="opacity:.55;margin-top:10px">Observe-only — ArgoCD is the single writer. Sync actions arrive in a later phase.</p>
                             </div>
 
-                            <!-- ── Dependency updates (Renovate) ───────────── -->
+                            <!-- ── Dependency updates (Renovate, observe-only) ─ -->
                             <div class="q-panel">
                                 <h2>Dependency Updates <span style="opacity:.55;font-weight:400">— Renovate</span></h2>
                                 <div class="q-divider"></div>
-                                <p id="updatesRenovateNote" class="q-summary-line" style="opacity:.7">Renovate not yet deployed — panel pending standup.</p>
+
+                                <div class="q-field-row">
+                                    <div id="updatesRenovateMeta" class="q-summary-line" style="flex:1">Renovate: loading…</div>
+                                    <a id="updatesRenovateDash" class="q-mini-btn" href="#" target="_blank" rel="noopener" title="Dependency dashboard" hidden>⬈</a>
+                                    <button type="button" class="q-mini-btn" data-action="refresh-renovate" title="Refresh Renovate">↻</button>
+                                </div>
+
+                                <div id="updatesRenovateBanner"></div>
+
+                                <table class="q-table" id="updatesRenovateTable">
+                                    <thead>
+                                        <tr><th>PR</th><th>Proposed update</th><th>Tier</th><th></th></tr>
+                                    </thead>
+                                    <tbody id="updatesRenovateBody">
+                                        <tr><td colspan="4" style="opacity:.6">Loading…</td></tr>
+                                    </tbody>
+                                </table>
+
+                                <p class="q-summary-line" style="opacity:.55;margin-top:10px">Observe-only — a human merges PRs; ArgoCD applies. Majors &amp; <code>staged-manual</code> (cert-manager) are surfaced, never one-click.</p>
                             </div>
 
                         </div>

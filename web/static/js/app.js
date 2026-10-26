@@ -32,7 +32,8 @@ import { initVipManager, loadVips, openVipBuilder, closeVipBuilder,
          vipNext, vipPrev, addBackendRow, removeBackendRow,
          openVipDestroy, confirmVipDestroy, cancelVipDestroy } from './modules/vthunder.js';
 import { loadUpdatesOverview, checkNodes, refreshArgocd,
-         runNodeUpdate, refreshRuns, onUpdatesGroupChange } from './modules/updates.js';
+         runNodeUpdate, refreshRuns, onUpdatesGroupChange,
+         refreshRenovate, syncArgoApp } from './modules/updates.js';
 
 /* ============================
    Rail View Switching System
@@ -117,6 +118,9 @@ const ACTION_HANDLERS = {
     // Updates page actions (node execute)
     'run-node-update':       runNodeUpdate,
     'refresh-runs':          refreshRuns,
+    // Updates page actions (pod orchestrate)
+    'refresh-renovate':      refreshRenovate,
+    'sync-argocd-app':       (el) => syncArgoApp(el),
 
     // Simple drawers
     'toggle-telemetry':      toggleTelemetry,

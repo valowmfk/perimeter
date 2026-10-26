@@ -123,3 +123,37 @@ def summarize(apps: list[dict]) -> dict:
     out_of_sync = sum(1 for a in apps if a["out_of_sync"])
     unhealthy = sum(1 for a in apps if a["health_status"] not in ("Healthy", "Unknown", ""))
     return {"total": total, "out_of_sync": out_of_sync, "unhealthy": unhealthy}
+
+
+def sync(app_name: str, dry_run: bool = False, prune: bool = False) -> dict:
+    """
+    TRIGGER ArgoCD to reconcile an application (git → cluster).
+
+    This is the ONLY mutating call in this module. It does NOT write the cluster
+    directly — it asks ArgoCD (the single writer) to sync the app to its git
+    source, which is the sanctioned way to trigger a native tool. Requires the
+    'applications, sync' RBAC grant on the scoped token. Perimeter never bumps
+    images or commits — that path stays git → Renovate PR → human merge → ArgoCD.
+    """
+    if not is_configured():
+        raise ArgocdError("ArgoCD is not configured")
+
+    url = f"{cfg.argocd_base_url}/applications/{app_name}/sync"
+    try:
+        if not cfg.ARGOCD_VERIFY_SSL:
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        r = requests.post(url, headers=cfg.argocd_headers(),
+                          json={"dryRun": bool(dry_run), "prune": bool(prune)},
+                          verify=cfg.ARGOCD_VERIFY_SSL, timeout=30)
+    except requests.exceptions.RequestException as e:
+        qlog_error(COMPONENT, f"ArgoCD sync request failed: {e}")
+        raise ArgocdError(f"ArgoCD unreachable: {e}")
+
+    if r.status_code in (401, 403):
+        raise ArgocdError(f"ArgoCD rejected sync ({r.status_code}) — token RBAC may lack 'applications, sync'")
+    if r.status_code != 200:
+        raise ArgocdError(f"ArgoCD sync returned HTTP {r.status_code}: {r.text[:200]}")
+
+    _cache["apps"] = None  # force a fresh list so the UI reflects the new op
+    qlog(COMPONENT, f"Triggered ArgoCD sync for {app_name} (dry_run={dry_run})")
+    return {"app": app_name, "dry_run": bool(dry_run), "started": True}

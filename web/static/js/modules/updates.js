@@ -72,13 +72,13 @@ function renderArgo(block) {
 
     if (!block.configured) {
         if (meta) meta.textContent = 'ArgoCD: not configured';
-        body.innerHTML = '<tr><td colspan="4" style="opacity:.6">Set ARGOCD_SERVER / ARGOCD_AUTH_TOKEN to enable.</td></tr>';
+        body.innerHTML = '<tr><td colspan="5" style="opacity:.6">Set ARGOCD_SERVER / ARGOCD_AUTH_TOKEN to enable.</td></tr>';
         return;
     }
     if (!block.ok) {
         if (meta) meta.textContent = 'ArgoCD: error';
         if (banner) banner.innerHTML = `<p class="q-summary-line"><span class="q-badge q-badge-red">ArgoCD unreachable</span> ${esc(block.error || '')}</p>`;
-        body.innerHTML = '<tr><td colspan="4" style="opacity:.6">—</td></tr>';
+        body.innerHTML = '<tr><td colspan="5" style="opacity:.6">—</td></tr>';
         return;
     }
 
@@ -94,8 +94,79 @@ function renderArgo(block) {
                 <td>${syncBadge(a.sync_status)}</td>
                 <td>${healthBadge(a.health_status)}</td>
                 <td><code>${esc(a.revision_current || '—')}</code> → ${esc(a.revision_target || '—')}</td>
+                <td><button type="button" class="q-mini-btn" data-action="sync-argocd-app" data-app="${esc(a.name)}" title="Trigger ArgoCD sync">Sync</button></td>
             </tr>`).join('')
-        : '<tr><td colspan="4" style="opacity:.6">No applications.</td></tr>';
+        : '<tr><td colspan="5" style="opacity:.6">No applications.</td></tr>';
+}
+
+function tierBadge(tiers) {
+    if (!tiers || !tiers.length) return '<span class="q-badge q-badge-grey">renovate</span>';
+    const cls = {
+        'tier-a': 'q-badge-green', 'tier-b': 'q-badge-yellow', 'tier-c': 'q-badge-red',
+        'staged-manual': 'q-badge-red', 'major': 'q-badge-orange', 'needs-review': 'q-badge-yellow'
+    };
+    return tiers.map(t => `<span class="q-badge ${cls[t] || 'q-badge-grey'}">${esc(t)}</span>`).join(' ');
+}
+
+function renderRenovate(block) {
+    const body = document.getElementById('updatesRenovateBody');
+    const meta = document.getElementById('updatesRenovateMeta');
+    const banner = document.getElementById('updatesRenovateBanner');
+    const dash = document.getElementById('updatesRenovateDash');
+    if (!body) return;
+    if (banner) banner.innerHTML = '';
+    if (dash) dash.hidden = true;
+    block = block || { configured: false };
+
+    if (!block.configured) {
+        if (meta) meta.textContent = 'Renovate: not configured';
+        body.innerHTML = '<tr><td colspan="4" style="opacity:.6">Set PERIMETER_GITHUB_TOKEN to enable, once Renovate is running.</td></tr>';
+        return;
+    }
+    if (!block.ok) {
+        if (meta) meta.textContent = 'Renovate: error';
+        if (banner) banner.innerHTML = `<p class="q-summary-line"><span class="q-badge q-badge-red">GitHub read failed</span> ${esc(block.error || '')}</p>`;
+        body.innerHTML = '<tr><td colspan="4" style="opacity:.6">—</td></tr>';
+        return;
+    }
+
+    if (dash && block.dashboard && block.dashboard.url) { dash.hidden = false; dash.href = block.dashboard.url; }
+    const prs = block.prs || [];
+    if (meta) meta.textContent = `Renovate: ${prs.length} open PR(s)` + (block.dashboard ? ' · dashboard ⬈' : '');
+    body.innerHTML = prs.length
+        ? prs.map(p => `
+            <tr>
+                <td><a href="${esc(p.url)}" target="_blank" rel="noopener">#${esc(p.number)}</a></td>
+                <td>${esc(p.title)}</td>
+                <td>${tierBadge(p.tiers)}</td>
+                <td><a class="q-mini-btn" href="${esc(p.url)}" target="_blank" rel="noopener" title="Review PR">Review ⬈</a></td>
+            </tr>`).join('')
+        : '<tr><td colspan="4" style="opacity:.6">No open Renovate PRs.</td></tr>';
+}
+
+export function refreshRenovate() {
+    fetch('/api/updates/renovate?refresh=1')
+        .then(r => r.json())
+        .then(renderRenovate)
+        .catch(err => showToast(`Renovate refresh failed: ${err.message}`));
+}
+
+export function syncArgoApp(el) {
+    const app = el && el.dataset ? el.dataset.app : '';
+    if (!app) return;
+    if (!window.confirm(`Trigger ArgoCD sync for "${app}"?\nThis reconciles the app to its git state.`)) return;
+    showToast(`Syncing ${app}…`);
+    fetch('/api/updates/argocd/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ app })
+    })
+    .then(resp => {
+        if (!resp.ok) return resp.json().then(e => { throw new Error(e.error || `HTTP ${resp.status}`); });
+        return resp.json();
+    })
+    .then(() => { showToast(`Sync triggered for ${app}`); setTimeout(refreshArgocd, 1500); })
+    .catch(err => showToast(`Sync failed: ${err.message}`));
 }
 
 export function loadUpdatesOverview() {
@@ -104,6 +175,7 @@ export function loadUpdatesOverview() {
         .then(data => {
             renderNodes({ nodes: data.nodes, last_checked: data.nodes_last_checked });
             renderArgo(data.argocd || { configured: false });
+            renderRenovate(data.renovate || { configured: false });
         })
         .catch(err => showToast(`Updates load failed: ${err.message}`));
     loadRunHistory();

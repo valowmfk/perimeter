@@ -56,15 +56,15 @@ def api_updates_overview():
     """Unified dashboard payload: node drift + pod (ArgoCD) drift."""
     from helpers import node_updates
 
+    from helpers import renovate
+
     force = request.args.get("refresh") == "1"
     node_status = node_updates.get_status()
     return jsonify({
         "nodes": node_status["nodes"],
         "nodes_last_checked": node_status["last_checked"],
         "argocd": _argocd_block(force=force),
-        # Renovate panel is deferred until Renovate is stood up (Phase 3 prereq).
-        "renovate": {"available": False,
-                     "note": "Renovate not yet deployed — pending standup."},
+        "renovate": renovate.get_data(force=force),
     })
 
 
@@ -201,3 +201,34 @@ def api_updates_nodes_running():
     except Exception:
         pass
     return jsonify({"running_groups": locked})
+
+
+# ── Pod orchestration (Phase 3) ─────────────────────────────
+
+@updates_bp.route("/api/updates/renovate")
+def api_updates_renovate():
+    """Renovate PRs + dependency dashboard (read-only observe)."""
+    from helpers import renovate
+    return jsonify(renovate.get_data(force=request.args.get("refresh") == "1"))
+
+
+@updates_bp.route("/api/updates/argocd/sync", methods=["POST"])
+def api_updates_argocd_sync():
+    """
+    Trigger ArgoCD to sync an app (git → cluster). Sanctioned native-tool
+    trigger — NOT a direct cluster write. Perimeter never merges/commits.
+    """
+    from helpers import argocd
+
+    data = request.json or {}
+    app = (data.get("app") or "").strip()
+    if not app or not is_safe_filename(app):
+        return api_error("A valid ArgoCD application name is required")
+    dry_run = bool(data.get("dry_run"))
+
+    audit_log("updates_argocd_sync", app, f"dry_run={dry_run}")
+    try:
+        result = argocd.sync(app, dry_run=dry_run)
+    except argocd.ArgocdError as e:
+        return api_error(str(e), 502)
+    return jsonify(result)

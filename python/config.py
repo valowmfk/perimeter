@@ -162,6 +162,17 @@ class Config:
     )
     ARGOCD_CACHE_TTL: int = 30  # seconds — dashboard read cache
 
+    # ── GitHub (Updates page — Renovate observe, READ-ONLY) ─────
+    # Perimeter reads Renovate's PRs + dependency dashboard via the GitHub API
+    # with a READ-scoped token. It never writes the repo (no merge, no commit).
+    GITHUB_TOKEN: str = field(
+        default_factory=lambda: os.getenv("PERIMETER_GITHUB_TOKEN", "")
+    )
+    GITHUB_REPO: str = field(
+        default_factory=lambda: os.getenv("PERIMETER_GITHUB_REPO", "")
+    )
+    GITHUB_CACHE_TTL: int = 60  # seconds
+
     # ── Certificates ────────────────────────────────────────────
     CERTBOT_EMAIL: str = field(
         default_factory=lambda: os.getenv("CERTBOT_EMAIL", "")
@@ -286,6 +297,16 @@ class Config:
         return {
             "Authorization": f"Bearer {self.ARGOCD_AUTH_TOKEN}",
             "Accept": "application/json",
+        }
+
+    def github_headers(self) -> Dict[str, str]:
+        """Build GitHub API authorization headers (read-only token)."""
+        if not self.GITHUB_TOKEN:
+            return {}
+        return {
+            "Authorization": f"Bearer {self.GITHUB_TOKEN}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
         }
 
 
