@@ -180,6 +180,108 @@ export function loadUpdatesOverview() {
         .catch(err => showToast(`Updates load failed: ${err.message}`));
     loadRunHistory();
     syncRunControls();
+    loadSchedules();
+}
+
+// ── Schedules (node patch windows) ──────────────────────────
+
+const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+function schedWhen(s) {
+    const t = `${String(s.hour).padStart(2, '0')}:${String(s.minute).padStart(2, '0')}`;
+    return s.frequency === 'weekly'
+        ? `Weekly · ${DOW[s.day_of_week] || '?'} ${t}`
+        : `Daily · ${t}`;
+}
+
+function renderSchedules(schedules) {
+    const body = document.getElementById('updatesSchedBody');
+    if (!body) return;
+    if (!schedules.length) {
+        body.innerHTML = '<tr><td colspan="6" style="opacity:.6">No schedules.</td></tr>';
+        return;
+    }
+    body.innerHTML = schedules.map(s => {
+        const next = s.enabled && s.next_run ? new Date(s.next_run).toLocaleString() : '—';
+        const onBadge = s.enabled
+            ? '<span class="q-badge q-badge-green">on</span>'
+            : '<span class="q-badge q-badge-grey">off</span>';
+        return `
+            <tr>
+                <td>${esc(s.name)}</td>
+                <td>${esc(schedWhen(s))}</td>
+                <td>${esc(s.group_name)}</td>
+                <td>${esc(next)}</td>
+                <td><button type="button" class="q-mini-btn" data-action="toggle-schedule" data-id="${s.id}" data-enabled="${s.enabled ? 1 : 0}" title="Toggle">${onBadge}</button></td>
+                <td><button type="button" class="q-mini-btn" data-action="delete-schedule" data-id="${s.id}" title="Delete">✕</button></td>
+            </tr>`;
+    }).join('');
+}
+
+export function loadSchedules() {
+    fetch('/api/updates/schedules')
+        .then(r => r.json())
+        .then(d => renderSchedules(d.schedules || []))
+        .catch(() => { /* best-effort */ });
+}
+
+export function onSchedFreqChange() {
+    const freq = document.getElementById('schedFreq')?.value;
+    const wrap = document.getElementById('schedDowWrap');
+    if (wrap) wrap.hidden = freq !== 'weekly';
+}
+
+export function createSchedule() {
+    const name = document.getElementById('schedName')?.value.trim();
+    const group = document.getElementById('schedGroup')?.value;
+    const frequency = document.getElementById('schedFreq')?.value;
+    const hour = parseInt(document.getElementById('schedHour')?.value, 10);
+    const minute = parseInt(document.getElementById('schedMin')?.value, 10);
+    const day_of_week = parseInt(document.getElementById('schedDow')?.value, 10);
+    const allow_reboot = document.getElementById('schedReboot')?.checked ?? true;
+    const statusEl = document.getElementById('schedStatus');
+
+    if (!name) { showToast('Give the schedule a name'); return; }
+    const body = { name, group, frequency, hour, minute, allow_reboot };
+    if (frequency === 'weekly') body.day_of_week = day_of_week;
+
+    const done = withBusy('create-schedule');
+    fetch('/api/updates/schedules', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    })
+    .then(resp => { if (!resp.ok) return resp.json().then(e => { throw new Error(e.error || `HTTP ${resp.status}`); }); return resp.json(); })
+    .then(() => {
+        showToast('Schedule added');
+        const n = document.getElementById('schedName'); if (n) n.value = '';
+        if (statusEl) statusEl.textContent = '';
+        loadSchedules();
+    })
+    .catch(err => { if (statusEl) statusEl.textContent = ''; showToast(`Add failed: ${err.message}`); })
+    .finally(() => done());
+}
+
+export function toggleSchedule(el) {
+    const id = el?.dataset?.id;
+    if (!id) return;
+    const enabled = el.dataset.enabled === '1';
+    fetch(`/api/updates/schedules/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: !enabled })
+    })
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(() => loadSchedules())
+    .catch(err => showToast(`Toggle failed: ${err.message}`));
+}
+
+export function deleteSchedule(el) {
+    const id = el?.dataset?.id;
+    if (!id) return;
+    if (!window.confirm('Delete this schedule?')) return;
+    fetch(`/api/updates/schedules/${id}`, { method: 'DELETE' })
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(() => { showToast('Schedule deleted'); loadSchedules(); })
+    .catch(err => showToast(`Delete failed: ${err.message}`));
 }
 
 // ── Node execution (patch) + run history ────────────────────

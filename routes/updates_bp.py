@@ -232,3 +232,81 @@ def api_updates_argocd_sync():
     except argocd.ArgocdError as e:
         return api_error(str(e), 502)
     return jsonify(result)
+
+
+# ── Node update schedules (Phase 4) ─────────────────────────
+
+@updates_bp.route("/api/updates/schedules")
+def api_updates_schedules():
+    from helpers import scheduler
+    return jsonify({"schedules": scheduler.list_schedules()})
+
+
+@updates_bp.route("/api/updates/schedules", methods=["POST"])
+def api_updates_schedules_create():
+    from helpers import scheduler
+
+    data = request.json or {}
+    name = (data.get("name") or "").strip()
+    group = (data.get("group") or "").strip()
+    frequency = (data.get("frequency") or "").strip()
+    if not name or len(name) > 60:
+        return api_error("A schedule name (<=60 chars) is required")
+    if not group or not is_safe_filename(group):
+        return api_error("A valid inventory group is required")
+    if frequency not in ("daily", "weekly"):
+        return api_error("frequency must be 'daily' or 'weekly'")
+    try:
+        hour = int(data.get("hour"))
+        minute = int(data.get("minute"))
+    except (ValueError, TypeError):
+        return api_error("hour and minute must be integers")
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return api_error("hour 0-23, minute 0-59")
+    dow = None
+    if frequency == "weekly":
+        try:
+            dow = int(data.get("day_of_week"))
+        except (ValueError, TypeError):
+            return api_error("weekly schedules need day_of_week 0-6 (Mon-Sun)")
+        if not (0 <= dow <= 6):
+            return api_error("day_of_week must be 0-6 (Mon-Sun)")
+
+    min_uptime = data.get("min_uptime_minutes")
+    drain = data.get("drain_timeout_seconds")
+    try:
+        min_uptime = int(min_uptime) if min_uptime is not None else None
+        drain = int(drain) if drain is not None else None
+    except (ValueError, TypeError):
+        return api_error("min_uptime_minutes / drain_timeout_seconds must be integers")
+
+    sid = scheduler.create_schedule(
+        name=name, group_name=group, frequency=frequency, hour=hour, minute=minute,
+        tz=(data.get("tz") or scheduler.DEFAULT_TZ), day_of_week=dow,
+        allow_reboot=bool(data.get("allow_reboot", True)),
+        min_uptime_minutes=min_uptime, drain_timeout_seconds=drain,
+        enabled=bool(data.get("enabled", True)),
+    )
+    audit_log("updates_schedule_create", name, f"group={group} {frequency}")
+    return jsonify(scheduler.get_schedule(sid))
+
+
+@updates_bp.route("/api/updates/schedules/<int:sid>", methods=["PATCH"])
+def api_updates_schedules_patch(sid):
+    from helpers import scheduler
+    if not scheduler.get_schedule(sid):
+        return api_error("Schedule not found", 404)
+    data = request.json or {}
+    if "enabled" in data:
+        scheduler.set_enabled(sid, bool(data["enabled"]))
+    return jsonify(scheduler.get_schedule(sid))
+
+
+@updates_bp.route("/api/updates/schedules/<int:sid>", methods=["DELETE"])
+def api_updates_schedules_delete(sid):
+    from helpers import scheduler
+    if not scheduler.get_schedule(sid):
+        return api_error("Schedule not found", 404)
+    scheduler.delete_schedule(sid)
+    audit_log("updates_schedule_delete", str(sid), "")
+    return jsonify({"deleted": sid})

@@ -38,6 +38,8 @@ logs/
 data/
 vm_track.json
 template_refresh.json
+celerybeat-schedule*
+state/
 
 # ── SSH keys ────────────────────────────────
 *.pem

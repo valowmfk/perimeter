@@ -91,6 +91,73 @@
                                 </table>
                             </div>
 
+                            <!-- ── Schedules (node patch windows) ──────────── -->
+                            <div class="q-panel">
+                                <h2>Schedules <span style="opacity:.55;font-weight:400">— node patch windows</span></h2>
+                                <div class="q-divider"></div>
+
+                                <table class="q-table" id="updatesSchedTable">
+                                    <thead>
+                                        <tr><th>Name</th><th>When</th><th>Group</th><th>Next run</th><th>On</th><th></th></tr>
+                                    </thead>
+                                    <tbody id="updatesSchedBody">
+                                        <tr><td colspan="6" style="opacity:.6">No schedules.</td></tr>
+                                    </tbody>
+                                </table>
+
+                                <div class="q-divider" style="margin-top:16px"></div>
+                                <h3 style="margin-top:12px">Add schedule</h3>
+
+                                <label for="schedName">Name</label>
+                                <input class="q-input" id="schedName" placeholder="e.g. Sunday k3s patch">
+
+                                <label for="schedGroup">Group</label>
+                                <select class="q-input" id="schedGroup">
+                                    <option value="k8s_linux">k8s_linux (k3s nodes)</option>
+                                    <option value="prod_linux_dnf">prod_linux_dnf</option>
+                                    <option value="prod_linux_apt">prod_linux_apt</option>
+                                    <option value="prod_docker">prod_docker</option>
+                                </select>
+
+                                <div class="q-field-row">
+                                    <div style="flex:1">
+                                        <label for="schedFreq">Frequency</label>
+                                        <select class="q-input" id="schedFreq">
+                                            <option value="weekly">Weekly</option>
+                                            <option value="daily">Daily</option>
+                                        </select>
+                                    </div>
+                                    <div style="flex:1" id="schedDowWrap">
+                                        <label for="schedDow">Day</label>
+                                        <select class="q-input" id="schedDow">
+                                            <option value="0">Monday</option><option value="1">Tuesday</option>
+                                            <option value="2">Wednesday</option><option value="3">Thursday</option>
+                                            <option value="4">Friday</option><option value="5">Saturday</option>
+                                            <option value="6" selected>Sunday</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="q-field-row">
+                                    <div style="flex:1">
+                                        <label for="schedHour">Hour (0-23)</label>
+                                        <input class="q-input" id="schedHour" type="number" min="0" max="23" value="2">
+                                    </div>
+                                    <div style="flex:1">
+                                        <label for="schedMin">Minute</label>
+                                        <input class="q-input" id="schedMin" type="number" min="0" max="59" value="0">
+                                    </div>
+                                </div>
+
+                                <label style="display:flex;align-items:center;gap:8px;margin:8px 0">
+                                    <input type="checkbox" id="schedReboot" checked> Allow reboot
+                                </label>
+
+                                <div id="schedStatus"></div>
+                                <button class="q-button" data-action="create-schedule">ADD SCHEDULE</button>
+                                <p class="q-summary-line" style="opacity:.55;margin-top:8px">Fires at the chosen local time (America/Denver). Reuses the one-run-per-group lock — a scheduled window skips if a run is already active.</p>
+                            </div>
+
                             <!-- ── Pod drift (ArgoCD, observe-only) ────────── -->
                             <div class="q-panel">
                                 <h2>Pod Drift <span style="opacity:.55;font-weight:400">— ArgoCD</span></h2>

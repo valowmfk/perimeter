@@ -33,7 +33,8 @@ import { initVipManager, loadVips, openVipBuilder, closeVipBuilder,
          openVipDestroy, confirmVipDestroy, cancelVipDestroy } from './modules/vthunder.js';
 import { loadUpdatesOverview, checkNodes, refreshArgocd,
          runNodeUpdate, refreshRuns, onUpdatesGroupChange,
-         refreshRenovate, syncArgoApp } from './modules/updates.js';
+         refreshRenovate, syncArgoApp,
+         createSchedule, toggleSchedule, deleteSchedule, onSchedFreqChange } from './modules/updates.js';
 
 /* ============================
    Rail View Switching System
@@ -121,6 +122,10 @@ const ACTION_HANDLERS = {
     // Updates page actions (pod orchestrate)
     'refresh-renovate':      refreshRenovate,
     'sync-argocd-app':       (el) => syncArgoApp(el),
+    // Updates page actions (schedules)
+    'create-schedule':       createSchedule,
+    'toggle-schedule':       (el) => toggleSchedule(el),
+    'delete-schedule':       (el) => deleteSchedule(el),
 
     // Simple drawers
     'toggle-telemetry':      toggleTelemetry,
@@ -316,6 +321,10 @@ function bindEvents() {
     // Updates page: group change toggles k3s drain field + lock state
     const updatesGroupSelect = document.getElementById('updatesGroupSelect');
     if (updatesGroupSelect) updatesGroupSelect.addEventListener('change', onUpdatesGroupChange);
+
+    // Updates page: schedule frequency toggles the day-of-week field
+    const schedFreq = document.getElementById('schedFreq');
+    if (schedFreq) schedFreq.addEventListener('change', onSchedFreqChange);
 
     // Certificate form inputs
     const certBaseDomain = document.getElementById('certBaseDomainSelect');

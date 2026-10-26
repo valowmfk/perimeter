@@ -8,7 +8,7 @@ Type=simple
 User={{ service_user }}
 Group={{ service_user }}
 
-ExecStart=/usr/local/bin/celery -A celery_app worker --loglevel=info --concurrency=4
+ExecStart=/usr/local/bin/celery -A celery_app worker --beat --loglevel=info --concurrency=4
 WorkingDirectory={{ install_dir }}/python
 
 # SOPS decryption needs the Age private key

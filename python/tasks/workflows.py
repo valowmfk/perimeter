@@ -265,6 +265,40 @@ def run_node_update(self, playbook_path, inventory_path, group="",
                 pass
 
 
+@celery.task(name="perimeter.scheduler_tick")
+def scheduler_tick():
+    """
+    Celery Beat tick (every 60s): fire any due node-update schedules.
+
+    Takes the per-group lock before dispatching (same guardrail as a manual run)
+    and skips a group that's already running — a scheduled window never stacks
+    on or overrides an in-flight run. serial:1 still lives in the playbook.
+    """
+    from helpers import scheduler, node_updates
+
+    fired = []
+    for s in scheduler.due_schedules():
+        group = s["group_name"]
+        lock_key = f"perimeter:nodeupdate:lock:{group}"
+        if not _redis.set(lock_key, "1", nx=True, ex=7200):
+            continue  # a run is already active for this group — try next tick
+        playbook = "k3s-updates.yml" if group == "k8s_linux" else "01-linux-updates.yml"
+        extra = {"allow_reboot": bool(s["allow_reboot"])}
+        if s["min_uptime_minutes"] is not None:
+            extra["min_uptime_minutes"] = s["min_uptime_minutes"]
+        if group == "k8s_linux" and s["drain_timeout_seconds"] is not None:
+            extra["drain_timeout_seconds"] = s["drain_timeout_seconds"]
+        run_node_update.delay(
+            playbook_path=str(cfg.PLAYBOOK_DIR / playbook),
+            inventory_path=node_updates.DEFAULT_INVENTORY,
+            group=group, extra_vars=extra, lock_key=lock_key,
+            triggered_by=f"schedule:{s['name']}",
+        )
+        scheduler.mark_fired(s["id"])
+        fired.append(s["id"])
+    return {"fired": fired}
+
+
 # ── Template Refresh ─────────────────────────────────────
 
 @celery.task(bind=True, name="perimeter.refresh_template")
