@@ -1,7 +1,7 @@
 // app.js — Main entry point (ES module)
 // Wires up all modules, event delegation, and rail view switching system.
 
-import { showToast } from './utils/dom.js';
+import { showToast, appendLogLine } from './utils/dom.js';
 import { toggleDnsFields, createDnsRecord } from './modules/dns.js';
 import { tryLoadIpam, loadIpamData, refreshIpam, validateIpAddress, loadIpamSubnets, onIpamSubnetChange } from './modules/ipam.js';
 import { loadPlaybook, runPlaybook, refreshPlaybooks, refreshInventories,
@@ -96,6 +96,36 @@ function initStreamGutter() {
         dragging = false; gutter.classList.remove('dragging');
         try { const v = main.style.getPropertyValue('--stream-width'); if (v) localStorage.setItem('perimeter.streamWidth', v); } catch (e) {}
     });
+}
+
+/* Global job feed — surface UNATTENDED (scheduler-fired) runs in the stream even
+   when their drawer isn't open. Only tails jobs tagged triggered_by=schedule:* ,
+   so operator-triggered runs (streamed by their own drawer) never double-print. */
+const _feedTailed = new Set();
+function pollJobFeed() {
+    fetch('/api/tasks')
+        .then(r => r.json())
+        .then(jobs => {
+            (jobs || []).forEach(j => {
+                const tb = j.triggered_by || '';
+                if (j.status !== 'running' || !tb.startsWith('schedule:') || _feedTailed.has(j.task_id)) return;
+                _feedTailed.add(j.task_id);
+                showToast(`Scheduled run started: ${tb.slice('schedule:'.length)}`);
+                const es = new EventSource(`/api/tasks/${j.task_id}/stream`);
+                es.onmessage = (e) => {
+                    if (e.data === '__COMPLETE__') {
+                        es.close(); _feedTailed.delete(j.task_id);
+                        if (document.getElementById('updatesDrawer')) loadUpdatesOverview();
+                    } else { appendLogLine(e.data); }
+                };
+                es.onerror = () => { es.close(); _feedTailed.delete(j.task_id); };
+            });
+        })
+        .catch(() => { /* feed is best-effort */ });
+}
+function startJobFeed() {
+    pollJobFeed();
+    setInterval(pollJobFeed, 10000);
 }
 
 function switchView(drawerId) {
@@ -472,6 +502,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Persistent stream column — make the divider draggable
     initStreamGutter();
+
+    // Global job feed — surface scheduler-fired runs in the stream
+    startJobFeed();
 });
 
 window.addEventListener('load', () => {

@@ -205,6 +205,13 @@ def run_node_update(self, playbook_path, inventory_path, group="",
     playbook_name = os.path.basename(playbook_path)
     run_id = None
     PLAYBOOK_RUNS_ACTIVE.inc()
+    # Tag job metadata so the UI's global feed can surface UNATTENDED (scheduler-
+    # fired) runs — which no drawer is listening for — without double-streaming
+    # operator-triggered runs (those stay "ui").
+    try:
+        _redis.hset(f"perimeter:job:{task_id}", "triggered_by", triggered_by or "ui")
+    except Exception:
+        pass
     try:
         # Snapshot kernels before patching (best-effort — never fail the run)
         t0 = node_updates.utcnow_iso()
