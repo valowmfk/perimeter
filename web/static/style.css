@@ -2210,6 +2210,39 @@ code {
 }
 
 /* ══════════════════════════════════════════════════════════════
+   RENOVATE — grouped-PR bundled deps (Updates cockpit)
+   ══════════════════════════════════════════════════════════════ */
+
+/* Muted sub-row hanging under a grouped PR's title row */
+.renovate-sub td {
+    padding-top: 2px;
+    border-bottom: 1px solid rgba(71,85,105,0.15);
+    background: rgba(12,21,37,0.4);
+}
+.renovate-deps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    padding: 2px 0 4px;
+}
+.renovate-dep {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 1px 8px;
+    border-radius: 3px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+.renovate-dep-ver {
+    color: var(--cyan-soft);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ══════════════════════════════════════════════════════════════
    LEGACY COMPATIBILITY (classes referenced by unchanged code)
    ══════════════════════════════════════════════════════════════ */
 

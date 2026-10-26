@@ -134,14 +134,41 @@ function renderRenovate(block) {
     const prs = block.prs || [];
     if (meta) meta.textContent = `Renovate: ${prs.length} open PR(s)` + (block.dashboard ? ' · dashboard ⬈' : '');
     body.innerHTML = prs.length
-        ? prs.map(p => `
+        ? prs.map(renovateRow).join('')
+        : '<tr><td colspan="4" style="opacity:.6">No open Renovate PRs.</td></tr>';
+}
+
+// One bundled dependency → a compact chip: "name type current→new".
+function renovateDepChip(u) {
+    const label = [u.name, u.type].filter(Boolean).join(' ');
+    const ver = u.new ? (u.current ? `${u.current} → ${u.new}` : u.new) : (u.update || '');
+    const title = [u.name, u.type && `(${u.type})`, u.current && u.new && `${u.current} → ${u.new}`]
+        .filter(Boolean).join(' ');
+    return `<span class="renovate-dep" title="${esc(title)}">${esc(label)}`
+        + (ver ? ` <span class="renovate-dep-ver">${esc(ver)}</span>` : '')
+        + `</span>`;
+}
+
+// A PR row. Grouped PRs (>1 parsed dep) get a muted sub-row listing what they
+// bundle; single-dep PRs render exactly as before.
+function renovateRow(p) {
+    const ups = p.updates || [];
+    const grouped = ups.length > 1;
+    const countChip = grouped ? ` <span class="q-badge q-badge-grey">${ups.length} deps</span>` : '';
+    const main = `
             <tr>
                 <td><a href="${esc(p.url)}" target="_blank" rel="noopener">#${esc(p.number)}</a></td>
-                <td>${esc(p.title)}</td>
+                <td>${esc(p.title)}${countChip}</td>
                 <td>${tierBadge(p.tiers)}</td>
                 <td><a class="q-mini-btn" href="${esc(p.url)}" target="_blank" rel="noopener" title="Review PR">Review ⬈</a></td>
-            </tr>`).join('')
-        : '<tr><td colspan="4" style="opacity:.6">No open Renovate PRs.</td></tr>';
+            </tr>`;
+    if (!grouped) return main;
+    const sub = `
+            <tr class="renovate-sub">
+                <td></td>
+                <td colspan="3"><div class="renovate-deps">${ups.map(renovateDepChip).join('')}</div></td>
+            </tr>`;
+    return main + sub;
 }
 
 export function refreshRenovate() {

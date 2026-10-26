@@ -10,6 +10,7 @@ it. Tier/label semantics come from the repo's renovate.json.
 
 from __future__ import annotations
 
+import re
 import time
 
 import requests
@@ -61,8 +62,80 @@ def _is_renovate(pr: dict) -> bool:
     return any(l.get("name") == "renovate" for l in pr.get("labels", []))
 
 
+_BACKTICK_RE = re.compile(r"`([^`]+)`")
+_LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
+_SEP_CHARS = set("|-: ")
+
+
+def _cell_name(cell: str) -> str:
+    """Package column → a clean dependency name. Renovate wraps it as a markdown
+    link (sometimes with a trailing ``([source](…))``); prefer the first link
+    text, else the raw cell. Backticks around the name are stripped."""
+    m = _LINK_RE.search(cell)
+    name = m.group(1) if m else cell
+    return name.strip().strip("`").strip()
+
+
+def _parse_updates(body: str) -> list[dict]:
+    """Parse the 'This PR contains the following updates' markdown table from a
+    Renovate PR body into ``[{name, type, current, new, update}]``.
+
+    Column order varies (Package / Type / Update / Change / Package file / …),
+    so we key off the header row by name. Returns [] when no table is found, so
+    the UI falls back to title-only rendering for odd/old bodies."""
+    if not body:
+        return []
+    lines = body.splitlines()
+    header_idx, headers = -1, []
+    for i, ln in enumerate(lines):
+        if "|" not in ln or "package" not in ln.lower():
+            continue
+        cells = [c.strip().lower() for c in ln.strip().strip("|").split("|")]
+        # Next line must be the markdown separator row (---|---).
+        if "package" in cells and i + 1 < len(lines) and set(lines[i + 1].strip()) <= _SEP_CHARS \
+                and "-" in lines[i + 1]:
+            header_idx, headers = i, cells
+            break
+    if header_idx < 0:
+        return []
+
+    pkg_i = headers.index("package")
+    type_i = headers.index("type") if "type" in headers else -1
+    update_i = headers.index("update") if "update" in headers else -1
+    change_i = headers.index("change") if "change" in headers else -1
+
+    updates: list[dict] = []
+    for ln in lines[header_idx + 2:]:
+        s = ln.strip()
+        if not s.startswith("|"):
+            break  # table ended
+        cells = [c.strip() for c in s.strip("|").split("|")]
+        if len(cells) <= pkg_i:
+            continue
+        name = _cell_name(cells[pkg_i])
+        if not name:
+            continue
+        current = new = None
+        if 0 <= change_i < len(cells):
+            vers = _BACKTICK_RE.findall(cells[change_i])
+            if vers:
+                new = vers[-1]
+                if len(vers) >= 2:
+                    current = vers[0]
+        dep = {
+            "name": name,
+            "type": cells[type_i].strip("`").strip() if 0 <= type_i < len(cells) else "",
+            "update": cells[update_i].strip("`").strip() if 0 <= update_i < len(cells) else "",
+            "current": current,
+            "new": new,
+        }
+        updates.append(dep)
+    return updates
+
+
 def _normalize_pr(pr: dict) -> dict:
     labels = [l.get("name", "") for l in pr.get("labels", [])]
+    updates = _parse_updates(pr.get("body") or "")
     return {
         "number": pr.get("number"),
         "title": pr.get("title", ""),
@@ -71,6 +144,8 @@ def _normalize_pr(pr: dict) -> dict:
         "draft": bool(pr.get("draft")),
         "tiers": _tiers(labels),
         "labels": labels,
+        "updates": updates,
+        "grouped": len(updates) > 1,
     }
 
 
