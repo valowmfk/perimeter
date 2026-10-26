@@ -49,6 +49,18 @@ def _tiers(labels: list[str]) -> list[str]:
     return [l for l in TIER_LABELS if l in labels]
 
 
+def _author(obj: dict) -> str:
+    return (obj.get("user") or {}).get("login", "").lower()
+
+
+def _is_renovate(pr: dict) -> bool:
+    """A PR is Renovate's if authored by the renovate bot/account or labelled
+    'renovate'. Author is the reliable signal; the label may be absent."""
+    if "renovate" in _author(pr):
+        return True
+    return any(l.get("name") == "renovate" for l in pr.get("labels", []))
+
+
 def _normalize_pr(pr: dict) -> dict:
     labels = [l.get("name", "") for l in pr.get("labels", [])]
     return {
@@ -76,17 +88,22 @@ def get_data(force: bool = False) -> dict:
     repo = cfg.GITHUB_REPO
     try:
         pulls = _get(f"/repos/{repo}/pulls", {"state": "open", "per_page": 100})
-        prs = [_normalize_pr(p) for p in pulls
-               if any(l.get("name") == "renovate" for l in p.get("labels", []))]
+        # Detect Renovate PRs by bot AUTHOR (reliable) or the 'renovate' label
+        # (only present when the repo's renovate config applies labels — the
+        # label can be absent/lagging, so don't depend on it).
+        prs = [_normalize_pr(p) for p in pulls if _is_renovate(p)]
 
-        # Dependency dashboard: find the open issue by title (issues endpoint
+        # Dependency dashboard: the bot-authored issue. Match the configured
+        # title OR Renovate's default "Dependency Dashboard" (issues endpoint
         # also returns PRs, so skip anything with a pull_request key).
         issues = _get(f"/repos/{repo}/issues", {"state": "open", "per_page": 100})
         dashboard = None
         for it in issues:
             if "pull_request" in it:
                 continue
-            if it.get("title", "").strip() == DASHBOARD_TITLE:
+            title = it.get("title", "").strip()
+            if (_author(it).find("renovate") >= 0
+                    and (title == DASHBOARD_TITLE or "dependency dashboard" in title.lower())):
                 dashboard = {"number": it.get("number"), "url": it.get("html_url", ""),
                              "updated_at": it.get("updated_at", "")}
                 break
