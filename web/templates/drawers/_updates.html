@@ -45,7 +45,50 @@
 
                                 <div id="updatesCheckStatus"></div>
                                 <button class="q-button" data-action="check-nodes">RUN DRIFT CHECK</button>
-                                <p class="q-summary-line" style="opacity:.55;margin-top:10px">Read-only: counts pending updates, changes nothing. Patching is a separate action.</p>
+                                <p class="q-summary-line" style="opacity:.55;margin-top:10px">Read-only: counts pending updates, changes nothing.</p>
+
+                                <!-- Execute: patch the selected group -->
+                                <div class="q-divider" style="margin-top:18px;border-color:var(--amber)"></div>
+                                <h3 style="margin-top:14px">Run Updates <span style="opacity:.55;font-weight:400">— patches the selected group</span></h3>
+
+                                <label style="display:flex;align-items:center;gap:8px;margin:8px 0">
+                                    <input type="checkbox" id="updatesAllowReboot" checked> Allow reboot
+                                </label>
+                                <div class="q-field-row">
+                                    <div style="flex:1">
+                                        <label for="updatesMinUptime">Min uptime (min)</label>
+                                        <input class="q-input" id="updatesMinUptime" type="number" value="5" min="0">
+                                    </div>
+                                    <div style="flex:1" id="updatesDrainWrap" hidden>
+                                        <label for="updatesDrainTimeout">Drain timeout (s)</label>
+                                        <input class="q-input" id="updatesDrainTimeout" type="number" value="300" min="1">
+                                    </div>
+                                </div>
+
+                                <div id="updatesRunStatus"></div>
+                                <button class="q-button" data-action="run-node-update"
+                                        style="margin-top:6px;box-shadow:inset 0 0 0 1px var(--amber);color:var(--amber)">
+                                    ⚠ RUN UPDATES
+                                </button>
+                                <p class="q-summary-line" style="opacity:.6;margin-top:8px">Patches &amp; may reboot the selected group. k3s nodes drain one at a time (<code>serial:1</code>, never overridden).</p>
+                            </div>
+
+                            <!-- ── Update history (node runs) ──────────────── -->
+                            <div class="q-panel">
+                                <h2>Update History <span style="opacity:.55;font-weight:400">— node runs</span></h2>
+                                <div class="q-divider"></div>
+                                <div class="q-field-row">
+                                    <div id="updatesRunsMeta" class="q-summary-line" style="flex:1">—</div>
+                                    <button type="button" class="q-mini-btn" data-action="refresh-runs" title="Refresh history">↻</button>
+                                </div>
+                                <table class="q-table" id="updatesRunsTable">
+                                    <thead>
+                                        <tr><th>When</th><th>Group</th><th>Playbook</th><th>Status</th><th>Reboot</th></tr>
+                                    </thead>
+                                    <tbody id="updatesRunsBody">
+                                        <tr><td colspan="5" style="opacity:.6">No runs yet.</td></tr>
+                                    </tbody>
+                                </table>
                             </div>
 
                             <!-- ── Pod drift (ArgoCD, observe-only) ────────── -->

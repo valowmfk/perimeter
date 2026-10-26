@@ -10,12 +10,29 @@ There is NO cluster-mutation path in this blueprint. Pod updates are ArgoCD's
 job; node patching (the execute path) lands in a later phase.
 """
 
+import os
+
+import redis
 from flask import Blueprint, jsonify, request
 
+from config import cfg
 from .audit import audit_log
-from .shared import api_error
+from .shared import api_error, is_safe_filename
 
 updates_bp = Blueprint("updates", __name__)
+
+_redis = redis.Redis.from_url(cfg.REDIS_URL)
+
+# Node track is EXECUTE-only through these two vetted playbooks. k8s_linux uses
+# the quorum-safe k3s playbook (serial:1 lives inside it); everything else uses
+# the universal linux updater. No arbitrary playbook is runnable here.
+NODE_PLAYBOOKS = {"k8s_linux": "k3s-updates.yml"}
+DEFAULT_NODE_PLAYBOOK = "01-linux-updates.yml"
+ALLOWED_NODE_PLAYBOOKS = {"k3s-updates.yml", "01-linux-updates.yml"}
+
+
+def _playbook_for_group(group: str) -> str:
+    return NODE_PLAYBOOKS.get(group, DEFAULT_NODE_PLAYBOOK)
 
 
 def _argocd_block(force: bool = False) -> dict:
@@ -86,3 +103,101 @@ def api_updates_nodes_check():
         "session_id": task.id,
         "stream_url": f"/api/tasks/{task.id}/stream",
     })
+
+
+# ── Node execution (Phase 2) ────────────────────────────────
+
+@updates_bp.route("/api/updates/nodes/run", methods=["POST"])
+def api_updates_nodes_run():
+    """
+    Trigger a node-update playbook against an inventory group. EXECUTE path.
+    Guardrails: playbook allow-list, vetted extra-vars (no serial override),
+    and a Redis lock so two node updates never run against the same group.
+    """
+    from helpers import node_updates
+
+    data = request.json or {}
+    group = (data.get("group") or "").strip()
+    if not group or not is_safe_filename(group):
+        return api_error("A valid inventory group is required")
+
+    playbook = _playbook_for_group(group)
+    if playbook not in ALLOWED_NODE_PLAYBOOKS:
+        return api_error("Update playbook not permitted", 403)
+    playbook_path = str(cfg.PLAYBOOK_DIR / playbook)
+    if not os.path.isfile(playbook_path):
+        return api_error("Update playbook not found", 404)
+
+    # Vetted extra-vars only. `serial` and friends are never accepted.
+    extra_vars: dict = {}
+    if "allow_reboot" in data:
+        extra_vars["allow_reboot"] = bool(data["allow_reboot"])
+    if data.get("min_uptime_minutes") is not None:
+        try:
+            extra_vars["min_uptime_minutes"] = max(0, int(data["min_uptime_minutes"]))
+        except (ValueError, TypeError):
+            return api_error("min_uptime_minutes must be an integer")
+    if playbook == "k3s-updates.yml" and data.get("drain_timeout_seconds") is not None:
+        try:
+            extra_vars["drain_timeout_seconds"] = max(1, int(data["drain_timeout_seconds"]))
+        except (ValueError, TypeError):
+            return api_error("drain_timeout_seconds must be an integer")
+
+    # Concurrency guard: one node update per group at a time (cluster safety).
+    lock_key = f"perimeter:nodeupdate:lock:{group}"
+    if not _redis.set(lock_key, "1", nx=True, ex=7200):
+        return api_error("A node update is already running for this group", 409)
+
+    audit_log("updates_node_run", playbook, f"group={group} vars={extra_vars}")
+    from tasks.workflows import run_node_update
+    try:
+        task = run_node_update.delay(
+            playbook_path=playbook_path,
+            inventory_path=node_updates.DEFAULT_INVENTORY,
+            group=group,
+            extra_vars=extra_vars,
+            lock_key=lock_key,
+            triggered_by="ui",
+        )
+    except Exception as e:
+        _redis.delete(lock_key)  # never leak the lock if enqueue fails
+        return api_error(f"Failed to enqueue update: {e}", 500)
+
+    return jsonify({
+        "session_id": task.id,
+        "stream_url": f"/api/tasks/{task.id}/stream",
+        "playbook": playbook,
+        "group": group,
+    })
+
+
+@updates_bp.route("/api/updates/nodes/runs")
+def api_updates_nodes_runs():
+    """Persisted node-update run history (newest first)."""
+    from helpers import run_history
+    try:
+        limit = min(200, max(1, int(request.args.get("limit", 50))))
+    except (ValueError, TypeError):
+        limit = 50
+    return jsonify({"runs": run_history.list_runs(limit)})
+
+
+@updates_bp.route("/api/updates/nodes/runs/<int:run_id>")
+def api_updates_nodes_run_detail(run_id):
+    from helpers import run_history
+    run = run_history.get_run(run_id)
+    if not run:
+        return api_error("Run not found", 404)
+    return jsonify(run)
+
+
+@updates_bp.route("/api/updates/nodes/running")
+def api_updates_nodes_running():
+    """Groups with an in-progress node update (locked) — for button state."""
+    locked = []
+    try:
+        for k in _redis.scan_iter("perimeter:nodeupdate:lock:*"):
+            locked.append(k.decode().rsplit(":", 1)[-1])
+    except Exception:
+        pass
+    return jsonify({"running_groups": locked})

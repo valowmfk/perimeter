@@ -31,7 +31,8 @@ import { toggleProxmoxFlyout, closeProxmoxFlyoutOnOutsideClick,
 import { initVipManager, loadVips, openVipBuilder, closeVipBuilder,
          vipNext, vipPrev, addBackendRow, removeBackendRow,
          openVipDestroy, confirmVipDestroy, cancelVipDestroy } from './modules/vthunder.js';
-import { loadUpdatesOverview, checkNodes, refreshArgocd } from './modules/updates.js';
+import { loadUpdatesOverview, checkNodes, refreshArgocd,
+         runNodeUpdate, refreshRuns, onUpdatesGroupChange } from './modules/updates.js';
 
 /* ============================
    Rail View Switching System
@@ -113,6 +114,9 @@ const ACTION_HANDLERS = {
     // Updates page actions (read-only observe)
     'check-nodes':           checkNodes,
     'refresh-argocd':        refreshArgocd,
+    // Updates page actions (node execute)
+    'run-node-update':       runNodeUpdate,
+    'refresh-runs':          refreshRuns,
 
     // Simple drawers
     'toggle-telemetry':      toggleTelemetry,
@@ -304,6 +308,10 @@ function bindEvents() {
 
     const groupSelect = document.getElementById('groupSelect');
     if (groupSelect) groupSelect.addEventListener('change', onGroupChange);
+
+    // Updates page: group change toggles k3s drain field + lock state
+    const updatesGroupSelect = document.getElementById('updatesGroupSelect');
+    if (updatesGroupSelect) updatesGroupSelect.addEventListener('change', onUpdatesGroupChange);
 
     // Certificate form inputs
     const certBaseDomain = document.getElementById('certBaseDomainSelect');

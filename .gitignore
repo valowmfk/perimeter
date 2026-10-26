@@ -55,6 +55,6 @@ Thumbs.db
 
 # ── Project-specific exclusions ────────────
 CLAUDE.md
-tasks/
+/tasks/
 certificates/
 inventories/inventory.yml

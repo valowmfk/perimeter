@@ -106,6 +106,153 @@ export function loadUpdatesOverview() {
             renderArgo(data.argocd || { configured: false });
         })
         .catch(err => showToast(`Updates load failed: ${err.message}`));
+    loadRunHistory();
+    syncRunControls();
+}
+
+// ── Node execution (patch) + run history ────────────────────
+
+function runStatusBadge(status) {
+    const map = { 'running': 'q-badge-yellow', 'success': 'q-badge-green',
+                  'failed': 'q-badge-red', 'error': 'q-badge-red' };
+    return `<span class="q-badge ${map[status] || 'q-badge-grey'}">${esc(status || '?')}</span>`;
+}
+
+function rebootBadge(r) {
+    if (r === 1 || r === true) return '<span class="q-badge q-badge-orange">rebooted</span>';
+    if (r === 0 || r === false) return '<span class="q-badge q-badge-grey">no</span>';
+    return '<span style="opacity:.5">—</span>';
+}
+
+function fmtWhen(started, ended) {
+    if (!started) return '—';
+    const s = new Date(started).toLocaleString();
+    return ended ? s : `${s} …`;
+}
+
+function renderRuns(runs) {
+    const body = document.getElementById('updatesRunsBody');
+    const meta = document.getElementById('updatesRunsMeta');
+    if (!body) return;
+    if (!runs.length) {
+        body.innerHTML = '<tr><td colspan="5" style="opacity:.6">No runs yet.</td></tr>';
+    } else {
+        body.innerHTML = runs.map(r => `
+            <tr>
+                <td>${esc(fmtWhen(r.started_at, r.ended_at))}</td>
+                <td>${esc(r.group_name || '—')}</td>
+                <td>${esc((r.playbook || '').replace(/\.ya?ml$/, ''))}</td>
+                <td>${runStatusBadge(r.status)}</td>
+                <td>${rebootBadge(r.reboot)}</td>
+            </tr>`).join('');
+    }
+    if (meta) meta.textContent = runs.length ? `${runs.length} run(s)` : 'No runs yet';
+}
+
+export function loadRunHistory() {
+    fetch('/api/updates/nodes/runs')
+        .then(r => r.json())
+        .then(d => renderRuns(d.runs || []))
+        .catch(() => { /* history is best-effort */ });
+}
+
+export function refreshRuns() {
+    loadRunHistory();
+}
+
+function setRunDisabled(disabled, label) {
+    const btn = document.querySelector('[data-action="run-node-update"]');
+    if (!btn) return;
+    btn.disabled = disabled;
+    btn.style.opacity = disabled ? '0.5' : '';
+    if (label) btn.textContent = label;
+}
+
+// Toggle the k3s-only drain field + reflect whether the selected group is
+// already running an update (lock held elsewhere).
+export function syncRunControls() {
+    const group = (document.getElementById('updatesGroupSelect') || {}).value || '';
+    const drainWrap = document.getElementById('updatesDrainWrap');
+    if (drainWrap) drainWrap.hidden = group !== 'k8s_linux';
+
+    fetch('/api/updates/nodes/running')
+        .then(r => r.json())
+        .then(d => {
+            const running = (d.running_groups || []).includes(group);
+            const statusEl = document.getElementById('updatesRunStatus');
+            setRunDisabled(running, running ? 'UPDATE RUNNING…' : '⚠ RUN UPDATES');
+            if (statusEl) statusEl.textContent = running ? `A run is in progress for ${group}.` : '';
+        })
+        .catch(() => { /* non-fatal */ });
+}
+
+export function onUpdatesGroupChange() {
+    syncRunControls();
+}
+
+export function runNodeUpdate() {
+    const group = (document.getElementById('updatesGroupSelect') || {}).value || '';
+    if (!group) { showToast('Select an inventory group first'); return; }
+
+    const allowReboot = document.getElementById('updatesAllowReboot')?.checked ?? true;
+    const minUptime = parseInt(document.getElementById('updatesMinUptime')?.value, 10);
+    const drainTimeout = parseInt(document.getElementById('updatesDrainTimeout')?.value, 10);
+    const isK3s = group === 'k8s_linux';
+
+    const msg = `Run updates on "${group}"?\n\nThis PATCHES` +
+        (allowReboot ? ' and may REBOOT' : '') + ` those hosts.` +
+        (isK3s ? '\nk3s nodes drain one at a time (serial:1).' : '');
+    if (!window.confirm(msg)) return;
+
+    const body = { group, allow_reboot: allowReboot };
+    if (!Number.isNaN(minUptime)) body.min_uptime_minutes = minUptime;
+    if (isK3s && !Number.isNaN(drainTimeout)) body.drain_timeout_seconds = drainTimeout;
+
+    const done = withBusy('run-node-update');
+    const statusEl = document.getElementById('updatesRunStatus');
+    if (statusEl) statusEl.textContent = `Starting update on ${group}…`;
+    appendLogLine(`[updates] node update: ${group} (${isK3s ? 'k3s-updates' : 'linux-updates'})`);
+
+    fetch('/api/updates/nodes/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    })
+    .then(resp => {
+        if (resp.status === 409) { throw new Error('A node update is already running for this group'); }
+        if (!resp.ok) return resp.json().then(e => { throw new Error(e.error || `HTTP ${resp.status}`); });
+        return resp.json();
+    })
+    .then(data => {
+        const es = new EventSource(data.stream_url);
+        es.onmessage = (event) => {
+            if (event.data === '__COMPLETE__') {
+                es.close();
+                done();
+                if (statusEl) statusEl.textContent = 'Finalizing (drift re-check)…';
+                showToast('Update finished — recording result');
+                loadUpdatesOverview();                       // refresh drift
+                // kernel-after + status land after the post-run drift check; poll.
+                [2000, 6000, 12000].forEach(t => setTimeout(loadRunHistory, t));
+                setTimeout(syncRunControls, 2000);
+            } else {
+                appendLogLine(event.data);
+            }
+        };
+        es.onerror = () => {
+            es.close(); done();
+            if (statusEl) statusEl.textContent = '';
+            showToast('Error streaming update output');
+            syncRunControls();
+        };
+    })
+    .catch(err => {
+        done();
+        if (statusEl) statusEl.textContent = '';
+        showToast(`Update failed: ${err.message}`);
+        appendLogLine(`ERROR: ${err.message}`);
+        syncRunControls();
+    });
 }
 
 export function refreshArgocd() {

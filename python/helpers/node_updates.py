@@ -15,8 +15,12 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+from datetime import datetime, timezone
 
 from config import cfg
+
+SSH_KEY = "~/.ssh/ansible_perimeter"
 
 CHECK_PLAYBOOK = str(cfg.PLAYBOOK_DIR / "updates-check.yml")
 STATUS_DIR = cfg.ROOT_DIR / "state" / "node_update_status"
@@ -69,3 +73,39 @@ def get_status() -> dict:
 
     nodes.sort(key=lambda n: n.get("host", ""))
     return {"nodes": nodes, "last_checked": last_checked}
+
+
+# ── Synchronous drift snapshot (used around a patch run, Phase 2) ──
+
+def utcnow_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def run_check_sync(group: str = DEFAULT_GROUP, timeout: int = 300) -> dict:
+    """Run the read-only drift check synchronously and return get_status().
+
+    Best-effort: used to snapshot kernels immediately before/after a patch run.
+    Never raises — a failed snapshot must not fail the patch run.
+    """
+    cmd = ["ansible-playbook", "-i", DEFAULT_INVENTORY,
+           "--private-key", os.path.expanduser(SSH_KEY), CHECK_PLAYBOOK]
+    if group:
+        cmd += ["-l", group]
+    try:
+        subprocess.run(cmd, cwd=str(cfg.ROOT_DIR), timeout=timeout,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    except Exception:
+        pass
+    return get_status()
+
+
+def kernels_since(iso_ts: str) -> dict:
+    """{host: kernel} for fragments checked at/after iso_ts (the hosts a
+    run_check_sync just refreshed), so stale fragments from other groups are
+    excluded."""
+    out: dict[str, str] = {}
+    for n in get_status().get("nodes", []):
+        ca = n.get("checked_at")
+        if ca and iso_ts and ca >= iso_ts:
+            out[n["host"]] = n.get("kernel")
+    return out
