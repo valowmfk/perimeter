@@ -77,6 +77,15 @@ function jumpToLive() {
     const p = document.getElementById('jumpLivePill'); if (p) p.classList.remove('show');
 }
 
+/* Collapsible labeled sidebar — expand to labels, collapse to icons. */
+function toggleRail() {
+    const expanded = document.body.classList.toggle('rail-expanded');
+    try { localStorage.setItem('perimeter.railExpanded', expanded ? '1' : '0'); } catch (e) {}
+}
+function restoreRail() {
+    try { if (localStorage.getItem('perimeter.railExpanded') === '1') document.body.classList.add('rail-expanded'); } catch (e) {}
+}
+
 /* Draggable gutter — resize the stream column, persisted per browser. */
 function initStreamGutter() {
     const gutter = document.getElementById('mainGutter');
@@ -215,6 +224,7 @@ const ACTION_HANDLERS = {
     'copy-stream':           copyStream,
     'stream-wide':           toggleStreamWide,
     'jump-to-live':          jumpToLive,
+    'toggle-rail':           toggleRail,
     'toggle-proxmox-flyout': toggleProxmoxFlyout,
 
     // Template management
@@ -330,6 +340,74 @@ document.addEventListener('keydown', function(e) {
     if (!actionEl) return;
     e.preventDefault();
     actionEl.click();
+});
+
+/* ── Command palette (⌘K / Ctrl+K) — jump to any drawer ─────── */
+let _cmdkActive = 0;
+let _cmdkMatches = [];
+function paletteOpen() {
+    const ov = document.getElementById('cmdkOverlay');
+    const input = document.getElementById('cmdkInput');
+    if (!ov || !input) return;
+    ov.style.display = 'flex';
+    input.value = '';
+    renderPalette('');
+    input.focus();
+}
+function paletteClose() {
+    const ov = document.getElementById('cmdkOverlay');
+    if (ov) ov.style.display = 'none';
+}
+function paletteIsOpen() {
+    const ov = document.getElementById('cmdkOverlay');
+    return ov && ov.style.display === 'flex';
+}
+function renderPalette(query) {
+    const list = document.getElementById('cmdkList');
+    if (!list) return;
+    const q = (query || '').trim().toLowerCase();
+    _cmdkMatches = DRAWERS.filter(d => !q || d.label.toLowerCase().includes(q) || d.group.toLowerCase().includes(q));
+    _cmdkActive = 0;
+    if (!_cmdkMatches.length) { list.innerHTML = '<li class="cmdk-empty">No matches</li>'; return; }
+    list.innerHTML = _cmdkMatches.map((d, i) =>
+        `<li class="cmdk-item${i === 0 ? ' active' : ''}" role="option" data-cmdk-index="${i}"><span>${d.label}</span><span class="cmdk-group">${d.group}</span></li>`
+    ).join('');
+}
+function paletteMove(delta) {
+    if (!_cmdkMatches.length) return;
+    _cmdkActive = (_cmdkActive + delta + _cmdkMatches.length) % _cmdkMatches.length;
+    const items = document.querySelectorAll('#cmdkList .cmdk-item');
+    items.forEach((el, i) => el.classList.toggle('active', i === _cmdkActive));
+    if (items[_cmdkActive]) items[_cmdkActive].scrollIntoView({ block: 'nearest' });
+}
+function paletteActivate(index) {
+    const d = _cmdkMatches[index];
+    if (!d) return;
+    paletteClose();
+    const handler = ACTION_HANDLERS[d.action];
+    if (handler) handler(); else switchView(d.id);
+}
+
+document.addEventListener('keydown', function(e) {
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        paletteIsOpen() ? paletteClose() : paletteOpen();
+        return;
+    }
+    if (!paletteIsOpen()) return;
+    if (e.key === 'Escape') { e.preventDefault(); paletteClose(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); paletteMove(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); paletteMove(-1); }
+    else if (e.key === 'Enter') { e.preventDefault(); paletteActivate(_cmdkActive); }
+});
+document.addEventListener('input', function(e) {
+    if (e.target && e.target.id === 'cmdkInput') renderPalette(e.target.value);
+});
+document.addEventListener('click', function(e) {
+    const item = e.target.closest('#cmdkList .cmdk-item');
+    if (item) { paletteActivate(parseInt(item.dataset.cmdkIndex, 10)); return; }
+    const ov = document.getElementById('cmdkOverlay');
+    if (ov && e.target === ov) paletteClose();  // click outside the box (e.target check, not stopPropagation)
 });
 
 // Change delegation (protect toggle + select elements)
@@ -491,6 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
     cacheTemplateOptions();  // Capture full unfiltered template list before any filtering
     bindEvents();
     onVmTypeChange();
+    restoreRail();
 
     // Feature-guarded initialization (only if drawer exists in DOM)
     if (document.getElementById('certCountStrip'))        loadCertStats();
