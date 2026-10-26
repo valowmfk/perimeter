@@ -133,6 +133,9 @@ class Config:
         "ipam": os.getenv("PERIMETER_FEATURE_IPAM", "1") == "1",
         "vthunder": os.getenv("PERIMETER_FEATURE_VTHUNDER", "1") == "1",
         "audit": os.getenv("PERIMETER_FEATURE_AUDIT", "1") == "1",
+        # Updates cockpit (node OS/k3s drift + ArgoCD pod drift). Opt-in: off
+        # until ArgoCD creds are in place and the operator enables it.
+        "updates": os.getenv("PERIMETER_FEATURE_UPDATES", "0") == "1",
     })
 
     # ── DNS Domain ────────────────────────────────────────────────
@@ -144,6 +147,20 @@ class Config:
     PIHOLE_URL: str = field(
         default_factory=lambda: os.getenv("PIHOLE_URL", "")
     )
+
+    # ── ArgoCD (Updates page — pod track, READ-ONLY observe) ────
+    # Perimeter NEVER mutates the cluster for pods: ArgoCD is the sole writer.
+    # This token is scoped (applications get/list) and used only to observe.
+    ARGOCD_SERVER: str = field(
+        default_factory=lambda: os.getenv("ARGOCD_SERVER", "")
+    )
+    ARGOCD_AUTH_TOKEN: str = field(
+        default_factory=lambda: os.getenv("ARGOCD_AUTH_TOKEN", "")
+    )
+    ARGOCD_VERIFY_SSL: bool = field(
+        default_factory=lambda: os.getenv("ARGOCD_VERIFY_SSL", "1") == "1"
+    )
+    ARGOCD_CACHE_TTL: int = 30  # seconds — dashboard read cache
 
     # ── Certificates ────────────────────────────────────────────
     CERTBOT_EMAIL: str = field(
@@ -248,6 +265,26 @@ class Config:
             return {}
         return {
             "Authorization": f"Token {self.NETBOX_API_TOKEN}",
+            "Accept": "application/json",
+        }
+
+    @property
+    def argocd_base_url(self) -> str:
+        """ArgoCD API base URL, derived from ARGOCD_SERVER (accepts bare host
+        or full URL). Empty string when unconfigured."""
+        server = (self.ARGOCD_SERVER or "").strip().rstrip("/")
+        if not server:
+            return ""
+        if not server.startswith(("http://", "https://")):
+            server = f"https://{server}"
+        return f"{server}/api/v1"
+
+    def argocd_headers(self) -> Dict[str, str]:
+        """Build ArgoCD API authorization headers (bearer token)."""
+        if not self.ARGOCD_AUTH_TOKEN:
+            return {}
+        return {
+            "Authorization": f"Bearer {self.ARGOCD_AUTH_TOKEN}",
             "Accept": "application/json",
         }
 

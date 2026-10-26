@@ -1,0 +1,259 @@
+---
+- name: k3s Node Update (quorum-safe rolling update)
+  hosts: k8s_linux             # <-- k3s inventory group (k8s01-03, the 3 control-plane/etcd nodes)
+  gather_facts: true
+  become: yes
+
+  # Process ONE node at a time. With a 3-node embedded-etcd HA cluster you can
+  # only afford to lose a single member (quorum = 2/3), so serial:1 is mandatory.
+  serial: 1
+
+  # If any node fails (drain hangs, health gate never passes), STOP the whole run
+  # immediately — do NOT move on and cordon a second node. A failed node is left
+  # cordoned/drained on purpose so you can inspect it before it rejoins.
+  any_errors_fatal: true
+
+  vars:
+    allow_reboot: true
+    min_uptime_minutes: 5
+
+    # k3s registers nodes by `uname -n`; verified to match the registered node
+    # names (k8sNN.home.klouda.co). Override here if your inventory differs.
+    k3s_node_name: "{{ ansible_facts.nodename }}"
+
+    kubectl: "/usr/local/bin/k3s kubectl"
+    etcd_metrics_url: "http://127.0.0.1:2381/metrics"
+    expected_node_count: 3
+
+    drain_timeout_seconds: 300
+    health_retries: 30          # 30 x 10s = up to 5 min to come back healthy
+    health_delay: 10
+
+  tasks:
+
+    ##########################################################################
+    # 0. Package-manager lock (Rocky/RHEL only — k3s nodes are DNF-based)
+    ##########################################################################
+
+    - name: DNF | Check for an active lock
+      stat:
+        path: "/var/run/dnf.pid"
+      register: dnf_lock
+
+    - name: DNF | Fail if a lock is held
+      fail:
+        msg: "DNF lock detected on {{ inventory_hostname }} — aborting."
+      when: dnf_lock.stat.exists
+
+
+    ##########################################################################
+    # 1. PRE-FLIGHT — the cluster must already be healthy before we touch THIS
+    #    node. Runs per-node (serial:1), so it re-validates that the previous
+    #    node fully recovered before we drain the next one.
+    ##########################################################################
+
+    - name: Pre-flight | List nodes
+      command: "{{ kubectl }} get nodes --no-headers"
+      register: preflight_nodes
+      changed_when: false
+
+    - name: Pre-flight | Abort if any node is NotReady or the count is wrong
+      fail:
+        msg: |
+          Cluster is not healthy — expected {{ expected_node_count }} Ready nodes.
+          Refusing to cordon {{ k3s_node_name }} and reduce quorum further.
+          {{ preflight_nodes.stdout }}
+      when: >
+        (preflight_nodes.stdout_lines | length) != (expected_node_count | int)
+        or ('NotReady' in preflight_nodes.stdout)
+
+    - name: Pre-flight | Confirm etcd has a leader (quorum intact)
+      shell: "set -o pipefail; curl -s --max-time 5 {{ etcd_metrics_url }} | awk '/^etcd_server_has_leader /{print $2}'"
+      args:
+        executable: /bin/bash
+      register: preflight_leader
+      changed_when: false
+
+    - name: Pre-flight | Abort if etcd has no leader
+      fail:
+        msg: "etcd_server_has_leader = '{{ preflight_leader.stdout | trim }}' on {{ inventory_hostname }} — quorum not healthy, aborting."
+      when: (preflight_leader.stdout | trim) != "1"
+
+
+    ##########################################################################
+    # 2. Capture kernel before upgrades
+    ##########################################################################
+
+    - name: Capture current kernel version before updates
+      command: uname -r
+      register: before_kernel
+      changed_when: false
+
+
+    ##########################################################################
+    # 3. CORDON + DRAIN this node (move workloads off before we patch/reboot)
+    #    NOTE: storage here is NFS (nfs-synology), so evicted pods reschedule
+    #    freely on the other nodes — no local-volume pinning to worry about.
+    ##########################################################################
+
+    - name: Cordon {{ k3s_node_name }}
+      command: "{{ kubectl }} cordon {{ k3s_node_name }}"
+      register: cordon_out
+      changed_when: "'already cordoned' not in cordon_out.stdout"
+
+    - name: Drain {{ k3s_node_name }}
+      command: >-
+        {{ kubectl }} drain {{ k3s_node_name }}
+        --ignore-daemonsets
+        --delete-emptydir-data
+        --force
+        --timeout={{ drain_timeout_seconds }}s
+      register: drain_out
+      changed_when: true
+
+
+    ##########################################################################
+    # 4. DNF upgrade — refresh metadata first (update_cache == `--refresh`).
+    #    Stale metadata was what caused a silent no-op update this round.
+    ##########################################################################
+
+    - name: DNF | Upgrade all packages (refreshing metadata)
+      dnf:
+        name: "*"
+        state: latest
+        update_cache: yes
+      register: dnf_upgrade
+
+    - name: DNF | Autoremove unused packages
+      dnf:
+        autoremove: yes
+
+    - name: DNF | Get update summary
+      command: dnf updateinfo summary
+      register: dnf_summary
+      changed_when: false
+
+
+    ##########################################################################
+    # 5. Kernel after + reboot decision
+    ##########################################################################
+
+    - name: Capture new kernel version after updates
+      command: uname -r
+      register: after_kernel
+      changed_when: false
+
+    - name: Determine if kernel changed
+      set_fact:
+        kernel_changed: "{{ before_kernel.stdout != after_kernel.stdout }}"
+
+    - name: Check system uptime in minutes
+      command: awk '{print int($1/60)}' /proc/uptime
+      register: uptime_minutes
+      changed_when: false
+
+    - name: Decide if reboot is allowed
+      set_fact:
+        should_reboot: >-
+          {{ allow_reboot
+             and (kernel_changed or (dnf_upgrade.changed | default(false)))
+             and (uptime_minutes.stdout | int) >= min_uptime_minutes
+          }}
+
+
+    ##########################################################################
+    # 6. Reboot (node is already cordoned + drained; Ansible auto-reconnects)
+    ##########################################################################
+
+    - name: Reboot {{ k3s_node_name }} if required
+      reboot:
+        msg: "Rebooting after k3s node updates"
+        connect_timeout: 5
+        reboot_timeout: 900
+        post_reboot_delay: 30
+      when: should_reboot
+
+
+    ##########################################################################
+    # 7. HEALTH GATE — must pass before we return the node to the pool.
+    #    Everything here retries until healthy or the run fails (any_errors_fatal).
+    ##########################################################################
+
+    - name: Health | Wait for this node's k3s API to answer /readyz
+      command: "{{ kubectl }} get --raw=/readyz"
+      register: api_ready
+      until: api_ready.rc == 0
+      retries: "{{ health_retries }}"
+      delay: "{{ health_delay }}"
+      changed_when: false
+
+    - name: Health | Wait for {{ k3s_node_name }} to report Ready
+      shell: "set -o pipefail; {{ kubectl }} get node {{ k3s_node_name }} --no-headers | awk '{print $2}'"
+      args:
+        executable: /bin/bash
+      register: node_status
+      until: node_status.stdout == "Ready"
+      retries: "{{ health_retries }}"
+      delay: "{{ health_delay }}"
+      changed_when: false
+
+    - name: Health | Wait for etcd to have a leader again
+      shell: "set -o pipefail; curl -s --max-time 5 {{ etcd_metrics_url }} | awk '/^etcd_server_has_leader /{print $2}'"
+      args:
+        executable: /bin/bash
+      register: etcd_leader
+      until: (etcd_leader.stdout | trim) == "1"
+      retries: "{{ health_retries }}"
+      delay: "{{ health_delay }}"
+      changed_when: false
+
+    - name: Health | Wait for ALL {{ expected_node_count }} nodes to be Ready (quorum restored)
+      shell: "set -o pipefail; {{ kubectl }} get nodes --no-headers | grep -cw Ready"
+      args:
+        executable: /bin/bash
+      register: ready_count
+      until: (ready_count.stdout | int) == (expected_node_count | int)
+      retries: "{{ health_retries }}"
+      delay: "{{ health_delay }}"
+      changed_when: false
+
+    - name: Health | Confirm the kernel actually changed when a reboot ran
+      debug:
+        msg: >-
+          WARNING: reboot ran but kernel is unchanged ({{ after_kernel.stdout }}).
+          Check that the update really installed a new kernel before trusting this node.
+      when:
+        - should_reboot | bool
+        - not (kernel_changed | bool)
+
+
+    ##########################################################################
+    # 8. UNCORDON — only reached once every health gate above has passed
+    ##########################################################################
+
+    - name: Uncordon {{ k3s_node_name }}
+      command: "{{ kubectl }} uncordon {{ k3s_node_name }}"
+      register: uncordon_out
+      changed_when: "'already uncordoned' not in uncordon_out.stdout"
+
+
+    ##########################################################################
+    # 9. Summary (A10/QBranch dashboard friendly)
+    ##########################################################################
+
+    - name: Display update summary
+      debug:
+        msg: |
+          🚀 k3s NODE UPDATE ({{ inventory_hostname }} / {{ k3s_node_name }})
+          ------------------------------------------
+          Kernel before:    {{ before_kernel.stdout }}
+          Kernel after:     {{ after_kernel.stdout }}
+          Kernel changed:   {{ kernel_changed }}
+          Reboot triggered: {{ should_reboot }}
+          Node Ready:       {{ node_status.stdout }}
+          Nodes Ready:      {{ ready_count.stdout }}/{{ expected_node_count }}
+          etcd has leader:  {{ etcd_leader.stdout | trim }}
+          Uncordoned:       {{ 'yes' if uncordon_out is defined else 'no' }}
+
+          DNF update summary:
+          {{ dnf_summary.stdout }}

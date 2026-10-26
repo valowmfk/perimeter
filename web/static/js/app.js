@@ -31,6 +31,7 @@ import { toggleProxmoxFlyout, closeProxmoxFlyoutOnOutsideClick,
 import { initVipManager, loadVips, openVipBuilder, closeVipBuilder,
          vipNext, vipPrev, addBackendRow, removeBackendRow,
          openVipDestroy, confirmVipDestroy, cancelVipDestroy } from './modules/vthunder.js';
+import { loadUpdatesOverview, checkNodes, refreshArgocd } from './modules/updates.js';
 
 /* ============================
    Rail View Switching System
@@ -48,7 +49,8 @@ function switchView(drawerId) {
         { id: 'certificateManagementDrawer', action: 'toggle-certificates' },
         { id: 'dnsManagementDrawer',         action: 'toggle-dns' },
         { id: 'ipamDrawer',                 action: 'toggle-ipam' },
-        { id: 'vipManagerDrawer',            action: 'toggle-vip-manager' }
+        { id: 'vipManagerDrawer',            action: 'toggle-vip-manager' },
+        { id: 'updatesDrawer',               action: 'toggle-updates' }
     ];
 
     // Close all drawers
@@ -106,6 +108,11 @@ const ACTION_HANDLERS = {
     'toggle-dns':            () => switchView('dnsManagementDrawer'),
     'toggle-ipam':           () => { switchView('ipamDrawer'); tryLoadIpam(); },
     'toggle-vip-manager':    () => switchView('vipManagerDrawer'),
+    'toggle-updates':        () => { switchView('updatesDrawer'); loadUpdatesOverview(); },
+
+    // Updates page actions (read-only observe)
+    'check-nodes':           checkNodes,
+    'refresh-argocd':        refreshArgocd,
 
     // Simple drawers
     'toggle-telemetry':      toggleTelemetry,
@@ -423,4 +430,5 @@ window.addEventListener('load', () => {
 
     // Feature-guarded init
     if (document.getElementById('ansibleOrchestrationDrawer')) initAnsible();
+    if (document.getElementById('updatesDrawer')) loadUpdatesOverview();
 });

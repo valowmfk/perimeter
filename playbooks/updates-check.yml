@@ -1,0 +1,72 @@
+---
+# Perimeter — read-only update drift check (Updates page, node track).
+#
+# OBSERVE ONLY. Gathers OS/kernel/k3s version and a pending-update COUNT per
+# host. Installs/changes nothing: no become, every task changed_when:false,
+# apt/dnf run in simulate/check mode. Actual patching is a separate playbook
+# (01-linux-updates.yml / k3s-updates.yml) driven from the execute path.
+#
+# Each host delegates a per-host JSON fragment write back to the controller
+# (state/node_update_status/<host>.json). Using delegate_to (not a
+# `hosts: localhost` play) keeps this compatible with `ansible-playbook -l
+# <group>` so the UI can scope a check to one inventory group.
+
+- name: Perimeter update drift check
+  hosts: all
+  gather_facts: true
+  become: false
+
+  vars:
+    status_dir: "{{ playbook_dir }}/../state/node_update_status"
+
+  tasks:
+    - name: Ensure controller status dir exists
+      ansible.builtin.file:
+        path: "{{ status_dir }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      run_once: true
+      changed_when: false
+
+    - name: Count pending APT upgrades (simulate, no lock)
+      ansible.builtin.shell: >-
+        apt-get -s -o Debug::NoLocking=true upgrade 2>/dev/null | grep -c '^Inst' || true
+      register: apt_pending
+      changed_when: false
+      when: ansible_facts.os_family == "Debian"
+
+    - name: Count pending DNF updates (check-update)
+      ansible.builtin.shell: >-
+        dnf -q check-update 2>/dev/null | grep -E '^[a-zA-Z0-9][^ ]+\.[^ ]+ ' | wc -l
+      register: dnf_pending
+      changed_when: false
+      failed_when: false
+      when: ansible_facts.os_family == "RedHat"
+
+    - name: Detect k3s version (absent on non-k8s hosts)
+      ansible.builtin.command: k3s --version
+      register: k3s_ver
+      changed_when: false
+      failed_when: false
+
+    - name: Write per-host drift fragment to controller
+      ansible.builtin.copy:
+        dest: "{{ status_dir }}/{{ inventory_hostname }}.json"
+        mode: "0644"
+        content: >-
+          {{
+            {
+              'host': inventory_hostname,
+              'group': (group_names | reject('equalto', 'all') | list | first) | default(''),
+              'os': ansible_facts.distribution ~ ' ' ~ ansible_facts.distribution_version,
+              'os_family': ansible_facts.os_family,
+              'kernel': ansible_facts.kernel,
+              'k3s_version': ((k3s_ver.stdout_lines[0] | default('')) if (k3s_ver.rc | default(1)) == 0 else ''),
+              'pending_updates': ((apt_pending.stdout if ansible_facts.os_family == 'Debian'
+                                   else dnf_pending.stdout | default('0')) | default('0') | trim | int),
+              'checked_at': ansible_date_time.iso8601
+            } | to_nice_json
+          }}
+      delegate_to: localhost
+      changed_when: false

@@ -69,6 +69,12 @@
             <span class="rail-tooltip">vThunder</span>
         </button>
         {% endif %}
+        {% if features.updates %}
+        <button class="rail-btn" data-action="toggle-updates" aria-label="Updates">
+            <span class="rail-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></span>
+            <span class="rail-tooltip">Updates</span>
+        </button>
+        {% endif %}
     </div>
     <div class="rail-bottom">
         <button class="rail-btn" aria-label="Settings">
@@ -94,6 +100,7 @@
             {% if features.dns %}{% include 'drawers/_dns.html' %}{% endif %}
             {% if features.ipam %}{% include 'drawers/_ipam.html' %}{% endif %}
             {% if features.vthunder %}{% include 'drawers/_vthunder.html' %}{% endif %}
+            {% if features.updates %}{% include 'drawers/_updates.html' %}{% endif %}
         </div>
     </div>
 
@@ -106,7 +113,7 @@
 {% include 'partials/_terminal.html' %}
 
 <!-- JavaScript -->
-<script type="module" src="/static/js/app.js?v=20260403a"></script>
+<script type="module" src="/static/js/app.js?v=20261025a"></script>
 
 
 </body>

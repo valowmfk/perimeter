@@ -21,6 +21,15 @@ credentials.auto.tfvars
 .terraform.lock.hcl
 *.auto.tfvars.json
 
+# ── Backups & scratch (never publish) ──────
+*.bak
+*.orig
+*.orig.old
+tmp/
+*.code-workspace
+perimeter-playground.html
+Test results.md
+
 # ── Lock files (runtime) ──────────────────
 *.lock
 

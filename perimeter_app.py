@@ -123,6 +123,10 @@ def create_app() -> Flask:
         from routes.system_bp import system_bp
         app.register_blueprint(system_bp)
 
+    if cfg.FEATURES.get("updates", False):
+        from routes.updates_bp import updates_bp
+        app.register_blueprint(updates_bp)
+
     return app
 
 
