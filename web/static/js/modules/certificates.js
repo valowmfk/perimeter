@@ -1,6 +1,6 @@
 // Certificate management UI
 
-import { escapeHtml, showToast, appendLogLine, togglePanel } from '../utils/dom.js';
+import { escapeHtml, showToast, appendLogLine, togglePanel, setRailAttention } from '../utils/dom.js';
 import { confirmModal } from '../utils/modal.js';
 import { withBusy } from '../utils/busy.js';
 import { refreshPlaybooks } from './ansible.js';
@@ -20,6 +20,16 @@ export function loadCertStats() {
             const stripCount = document.getElementById('certCountStrip');
             const stripExpiry = document.getElementById('nextExpiryStrip');
             if (stripCount) stripCount.textContent = `${validCerts.length}/${domains.length}`;
+
+            // Roll-up onto the rail Certificates icon: red if anything expired/critical,
+            // amber if expiring soon, clear otherwise.
+            let certLevel = 'ok';
+            domains.forEach(d => {
+                if (!d.has_cert) return;
+                if (d.status === 'expired' || d.status === 'critical') certLevel = 'err';
+                else if ((d.status === 'expiring_soon' || d.status === 'warn') && certLevel !== 'err') certLevel = 'warn';
+            });
+            setRailAttention('toggle-certificates', certLevel);
 
             let nextExpiry = null;
             domains.forEach(d => {
@@ -46,6 +56,7 @@ export function loadCertStats() {
             const stripExpiry = document.getElementById('nextExpiryStrip');
             if (stripCount) stripCount.textContent = 'Error';
             if (stripExpiry) stripExpiry.textContent = 'Error';
+            setRailAttention('toggle-certificates', 'warn');
         });
 }
 

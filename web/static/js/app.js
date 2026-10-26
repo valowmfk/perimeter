@@ -82,6 +82,12 @@ function toggleRail() {
     const expanded = document.body.classList.toggle('rail-expanded');
     try { localStorage.setItem('perimeter.railExpanded', expanded ? '1' : '0'); } catch (e) {}
 }
+
+/* Responsive (≤1100px): the rail becomes an off-canvas drawer behind a
+   hamburger, and the stream becomes a collapsible bottom sheet. */
+function toggleMobileNav() { document.body.classList.toggle('nav-open'); }
+function closeMobileNav()  { document.body.classList.remove('nav-open'); }
+function toggleStreamSheet() { document.body.classList.toggle('sheet-open'); }
 function restoreRail() {
     try { if (localStorage.getItem('perimeter.railExpanded') === '1') document.body.classList.add('rail-expanded'); } catch (e) {}
 }
@@ -161,6 +167,9 @@ function switchView(drawerId) {
     document.querySelectorAll('.rail-btn').forEach(btn => btn.classList.remove('active'));
     const railBtn = document.querySelector(`.rail-btn[data-action="${views.find(v => v.id === drawerId)?.action}"]`);
     if (railBtn) railBtn.classList.add('active');
+
+    // On mobile, picking a drawer dismisses the off-canvas rail.
+    closeMobileNav();
 }
 
 /* ============================
@@ -225,6 +234,10 @@ const ACTION_HANDLERS = {
     'stream-wide':           toggleStreamWide,
     'jump-to-live':          jumpToLive,
     'toggle-rail':           toggleRail,
+    // Responsive nav + stream sheet (≤1100px)
+    'toggle-mobile-nav':     toggleMobileNav,
+    'close-mobile-nav':      closeMobileNav,
+    'toggle-stream-sheet':   toggleStreamSheet,
     'toggle-proxmox-flyout': toggleProxmoxFlyout,
 
     // Template management

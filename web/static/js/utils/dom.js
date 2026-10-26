@@ -98,3 +98,13 @@ export function appendLogLine(line) {
         pill.classList.add('show');
     }
 }
+
+/* Rail attention dot — mirror a drawer's roll-up health onto its nav icon so a
+   problem is visible without opening the drawer. level: 'ok' | 'warn' | 'err'
+   (CSS renders a dot only for warn/err); '' clears it. Idempotent. */
+export function setRailAttention(action, level) {
+    document.querySelectorAll(`.rail-btn[data-action="${action}"]`).forEach(btn => {
+        if (level) btn.setAttribute('data-attn', level);
+        else btn.removeAttribute('data-attn');
+    });
+}

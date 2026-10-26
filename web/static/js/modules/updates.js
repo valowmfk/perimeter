@@ -2,7 +2,7 @@
 // (ArgoCD). No mutation happens here: the "check" action runs a read-only
 // Ansible drift play; ArgoCD is observed only.
 
-import { showToast, appendLogLine } from '../utils/dom.js';
+import { showToast, appendLogLine, setRailAttention } from '../utils/dom.js';
 import { withBusy } from '../utils/busy.js';
 
 function esc(s) {
@@ -176,6 +176,18 @@ export function loadUpdatesOverview() {
             renderNodes({ nodes: data.nodes, last_checked: data.nodes_last_checked });
             renderArgo(data.argocd || { configured: false });
             renderRenovate(data.renovate || { configured: false });
+
+            // Roll-up onto the rail Updates icon: err if any app unhealthy,
+            // warn if nodes have pending updates / apps out-of-sync / open PRs.
+            let level = 'ok';
+            const nodes = data.nodes || [];
+            const argo = data.argocd || {};
+            const s = argo.summary || {};
+            const prs = (data.renovate && data.renovate.prs) ? data.renovate.prs.length : 0;
+            if (argo.ok && Number(s.unhealthy) > 0) level = 'err';
+            else if (nodes.some(n => Number(n.pending_updates) > 0) ||
+                     (argo.ok && Number(s.out_of_sync) > 0) || prs > 0) level = 'warn';
+            setRailAttention('toggle-updates', level);
         })
         .catch(err => showToast(`Updates load failed: ${err.message}`));
     loadRunHistory();

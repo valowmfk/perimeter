@@ -2061,13 +2061,152 @@ code {
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
 /* ══════════════════════════════════════════════════════════════
+   TIER C — POLISH
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Tabular numerals — digits line up across every data surface ── */
+.q-table, .data-table, .sc-value, .stream-count, .q-mission-timer,
+.q-telemetry-value, .q-cert-days, .status-chip, .q-badge, #terminalLog {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+}
+
+/* ── Status-dot grammar — one shared vocabulary of health ──────── */
+.status-dot.ok   { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-dot.idle { background: var(--text-faint); box-shadow: none; animation: none; }
+
+/* ── Rail attention dots — roll-up health surfaced on the nav icon ─ */
+.rail-btn .rail-icon { position: relative; }
+.rail-btn[data-attn="warn"] .rail-icon::after,
+.rail-btn[data-attn="err"]  .rail-icon::after {
+    content: '';
+    position: absolute;
+    top: -3px; right: -4px;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    border: 1.5px solid var(--bg-primary);
+}
+.rail-btn[data-attn="warn"] .rail-icon::after { background: var(--amber); box-shadow: 0 0 5px var(--amber); }
+.rail-btn[data-attn="err"]  .rail-icon::after { background: var(--red); box-shadow: 0 0 5px var(--red); animation: pulse-dot 2s ease-in-out infinite; }
+
+/* ── Severity left-borders — the same through-line on any data table ─ */
+.q-table tr:has(.q-badge-yellow) td:first-child,
+.data-table tr:has(.q-badge-yellow) td:first-child { box-shadow: inset 3px 0 0 var(--amber); }
+.q-table tr:has(.q-badge-orange) td:first-child,
+.data-table tr:has(.q-badge-orange) td:first-child { box-shadow: inset 3px 0 0 #fb923c; }
+.q-table tr:has(.q-badge-red) td:first-child,
+.data-table tr:has(.q-badge-red) td:first-child { box-shadow: inset 3px 0 0 var(--red); }
+/* Reusable panel severity accents */
+.q-panel.sev-warn { border-left: 3px solid var(--amber); }
+.q-panel.sev-err  { border-left: 3px solid var(--red); }
+
+/* ── Subtle scanline — the stream reads like a live terminal ────── */
+.terminal::after {
+    content: '';
+    position: absolute;
+    inset: 36px 0 24px 0;
+    pointer-events: none;
+    z-index: 1;
+    background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.016) 0 1px, transparent 1px 3px);
+    mix-blend-mode: overlay;
+}
+
+/* ── Staggered boot reveal (once, on load; respects reduced-motion) ─ */
+@keyframes boot-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes boot-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: no-preference) {
+    .rail           { animation: boot-rise 0.45s cubic-bezier(.2,.7,.3,1) both; }
+    .header         { animation: boot-rise 0.45s cubic-bezier(.2,.7,.3,1) both 0.05s; }
+    #workspacePanel { animation: boot-fade 0.5s ease both 0.12s; }
+    #streamPanel    { animation: boot-fade 0.5s ease both 0.18s; }
+}
+
+/* ══════════════════════════════════════════════════════════════
    RESPONSIVE
    ══════════════════════════════════════════════════════════════ */
 
+/* Hamburger + bottom-sheet handle are desktop-hidden by default */
+.mobile-nav-btn {
+    display: none;
+    width: 34px; height: 34px;
+    align-items: center; justify-content: center;
+    padding: 0; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg-elevated); color: var(--text-secondary);
+}
+.nav-scrim { display: none; }
+.stream-sheet-handle { display: none; }
+
+/* Laptop (1101–1600px): the stream collapses toward a slim right rail,
+   unless the operator has dragged it to their own width. */
+@media (min-width: 1101px) and (max-width: 1600px) {
+    .main { grid-template-columns: minmax(0, 1fr) 5px minmax(0, var(--stream-width, 360px)); }
+}
+
+/* Ultra-wide (≥1600px): the Updates cockpit flows into two columns. */
+@media (min-width: 1600px) {
+    #updatesDrawer .q-provision-content { columns: 2; column-gap: 16px; }
+    #updatesDrawer .q-provision-content > .q-panel { break-inside: avoid; }
+}
+
+/* Narrow (≤1100px): rail → off-canvas hamburger, stream → bottom sheet. */
 @media (max-width: 1100px) {
-    .main {
+    body {
         grid-template-columns: 1fr;
+        grid-template-areas: "header" "main";
     }
+
+    .mobile-nav-btn { display: inline-flex; }
+
+    .rail {
+        position: fixed; top: 0; left: 0; bottom: 0;
+        width: 232px;
+        transform: translateX(-100%);
+        transition: transform 0.2s ease;
+        z-index: var(--z-modal);
+        box-shadow: 8px 0 32px rgba(0,0,0,0.5);
+    }
+    body.nav-open .rail { transform: translateX(0); }
+
+    /* Mobile rail always shows its labels (reuse the expanded grammar) */
+    .rail-group-label {
+        display: block;
+        font-family: var(--font-mono); font-size: 9px; text-transform: uppercase;
+        letter-spacing: 0.1em; color: var(--text-faint); padding: 8px 16px 4px;
+    }
+    .rail-btn { justify-content: flex-start; padding: 0 16px; gap: 12px; }
+    .rail-label { display: inline; font-family: var(--font-display); font-size: 12.5px; white-space: nowrap; }
+    .rail-tooltip { display: none; }
+    .rail-expand-btn { display: none; }
+
+    .nav-scrim {
+        position: fixed; inset: 0;
+        background: rgba(8,14,26,0.6);
+        z-index: calc(var(--z-modal) - 1);
+    }
+    body.nav-open .nav-scrim { display: block; }
+
+    .main { grid-template-columns: 1fr; }
+    .main-gutter { display: none; }
+    #workspacePanel { padding-bottom: 48px; }
+
+    #streamPanel {
+        position: fixed; left: 0; right: 0; bottom: 0;
+        height: 40px;
+        z-index: var(--z-flyout);
+        border-top: 1px solid var(--border);
+        box-shadow: 0 -8px 32px rgba(0,0,0,0.4);
+        transition: height 0.22s ease;
+    }
+    body.sheet-open #streamPanel { height: 62vh; }
+
+    .stream-sheet-handle {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 26px; height: 24px; padding: 0;
+        background: none; border: 1px solid transparent; border-radius: 3px;
+        color: var(--text-muted); font-size: 10px;
+        transition: transform 0.2s;
+    }
+    body.sheet-open .stream-sheet-handle { transform: rotate(180deg); color: var(--cyan); }
 }
 
 /* ══════════════════════════════════════════════════════════════

@@ -1,6 +1,6 @@
 // VM list, create, destroy, protect, bridges, hostname
 
-import { escapeHtml, showToast, getConfig } from '../utils/dom.js';
+import { escapeHtml, showToast, getConfig, setRailAttention } from '../utils/dom.js';
 import { ansiToHtml } from '../utils/ansi.js';
 import { confirmModal } from '../utils/modal.js';
 import { validateSubnetIp } from '../utils/validation.js';
@@ -725,6 +725,8 @@ export function loadVmList() {
             if (hdrRun) hdrRun.textContent = running;
             if (hdrStop) hdrStop.textContent = stopped;
             if (hdrDot) hdrDot.className = 'status-dot' + (stopped > 0 ? ' warn' : '');
+            // Mirror the roll-up onto the rail Assets icon (warn if anything's down)
+            setRailAttention('toggle-assets', stopped > 0 ? 'warn' : 'ok');
 
             updateProxmoxStripFromVms(vms);
         })
