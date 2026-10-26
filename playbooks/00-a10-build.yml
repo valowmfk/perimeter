@@ -132,6 +132,7 @@
         - port_number: 443
           protocol: https
           service_group: auto_websg
+          auto: true
           template_persist_cookie: a10-k6-persist
           template_server_ssl: server-encrypt
           template_client_ssl: www_klouda_work_client_ssl
