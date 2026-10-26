@@ -1,0 +1,46 @@
+                    <!-- ACTIVE ASSETS DRAWER -->
+                    <button type="button"
+                            class="q-telemetry-toggle"
+                            data-action="toggle-assets"
+                            aria-expanded="false"
+                            aria-controls="assetsDrawer">
+                        <span class="q-drawer-label"><svg class="q-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><line x1="7" y1="7" x2="7.01" y2="7"/><line x1="7" y1="17" x2="7.01" y2="17"/></svg> Active Assets</span>
+                        <span id="qAssetsCount" class="q-mission-timer">0 assets</span>
+                    </button>
+
+                    <div id="assetsDrawer" class="q-telemetry-drawer q-provision-drawer">
+                        <div class="panel-header">
+                          <svg class="ph-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/></svg>
+                          Active Assets
+                        </div>
+                        <div class="panel-body">
+                            <div class="q-panel">
+                                <div class="card-grid">
+                                    <div class="stat-card">
+                                        <div class="sc-label">Running</div>
+                                        <div class="sc-value" id="assetRunningCount" style="color:var(--green);">-</div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div class="sc-label">Stopped</div>
+                                        <div class="sc-value" id="assetStoppedCount" style="color:var(--amber);">-</div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div class="sc-label">Templates</div>
+                                        <div class="sc-value" id="assetTemplateCount" style="color:var(--purple);">-</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="q-panel">
+                                <table class="data-table q-table">
+                                    <thead>
+                                        <tr>
+                                            <th>VMID</th><th>Name</th><th>IP</th><th>Group</th>
+                                            <th>Status</th><th>Actions</th><th>First Seen</th><th>Last Seen</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="vmTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>

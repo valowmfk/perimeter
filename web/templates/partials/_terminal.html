@@ -1,12 +1,27 @@
-<!-- TERMINAL -->
+<!-- LIVE STREAM (persistent right panel) -->
 <div class="terminal">
-  <div class="terminal-bar" data-action="toggle-terminal">
-    <span class="terminal-live"></span>
+  <div class="terminal-bar">
+    <span class="terminal-live" id="streamLiveDot"></span>
     <span class="terminal-label">LIVE STREAM</span>
-    <span class="terminal-actions">
-      <button class="terminal-maximize" data-action="maximize-terminal" title="Maximize terminal" aria-label="Maximize terminal">&#9634;</button>
-      <span class="terminal-chevron" id="terminalChevron">&#9650;</span>
+    <span class="stream-count" id="streamLineCount"></span>
+    <span class="stream-controls">
+      <button class="q-mini-btn" data-action="clear-stream" title="Clear the stream">Clear</button>
+      <button class="q-mini-btn" data-action="copy-stream" title="Copy all output">Copy</button>
+      <button class="q-mini-btn" data-action="stream-wide" title="Widen / narrow the stream" aria-label="Toggle wide stream">&#8646;</button>
     </span>
   </div>
+
   <pre id="terminalLog" class="terminal-output" role="log" aria-label="Live provisioning output" aria-live="polite"></pre>
+
+  <div class="stream-empty" id="streamEmpty">
+    <span class="caret">&#9611;</span>
+    <span>awaiting output</span>
+    <span style="opacity:.65;">run a provision, playbook, or update to stream here</span>
+  </div>
+
+  <button type="button" class="jump-live-pill" id="jumpLivePill" data-action="jump-to-live">&#8595; new output</button>
+
+  <div class="stream-footer">
+    <span id="streamStatus">&#9675; idle &mdash; waiting for a job</span>
+  </div>
 </div>

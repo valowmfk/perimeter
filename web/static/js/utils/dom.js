@@ -53,12 +53,19 @@ export function appendLogLine(line) {
         return;
     }
 
+    const terminal = output.closest('.terminal');
+    if (terminal && !terminal.classList.contains('has-output')) terminal.classList.add('has-output');
+
+    // Follow-tail: only auto-scroll if the operator is already near the bottom.
+    // If they've scrolled up to read something, don't yank them — flag new output.
+    const atBottom = (output.scrollHeight - output.scrollTop - output.clientHeight) < 48;
+
     const span = document.createElement("span");
     span.textContent = line;
 
     const lower = line.toLowerCase();
-
-    if (lower.includes("failed") || lower.includes("fatal:") || lower.includes("error")) {
+    const failed = lower.includes("failed") || lower.includes("fatal:") || lower.includes("error");
+    if (failed) {
         span.className = "log-line log-error";
     } else if (lower.includes("changed")) {
         span.className = "log-line log-changed";
@@ -70,5 +77,24 @@ export function appendLogLine(line) {
 
     output.appendChild(span);
     output.appendChild(document.createElement("br"));
-    output.scrollTop = output.scrollHeight;
+
+    // Scrollback cap (~5000 lines; each line = span + br) to bound DOM growth.
+    while (output.childNodes.length > 10000) output.removeChild(output.firstChild);
+
+    // Live dot + footer + line count
+    const dot = document.getElementById('streamLiveDot');
+    if (dot) dot.className = failed ? 'terminal-live failed' : 'terminal-live streaming';
+    const lines = output.childElementCount;
+    const count = document.getElementById('streamLineCount');
+    if (count) count.textContent = lines + ' lines';
+    const status = document.getElementById('streamStatus');
+    if (status) status.innerHTML = (failed ? '● last line errored' : '● streaming') + ' · ' + lines + ' lines';
+
+    const pill = document.getElementById('jumpLivePill');
+    if (atBottom) {
+        output.scrollTop = output.scrollHeight;
+        if (pill) pill.classList.remove('show');
+    } else if (pill) {
+        pill.classList.add('show');
+    }
 }

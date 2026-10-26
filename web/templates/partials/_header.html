@@ -43,6 +43,15 @@
                 <div id="certFlyoutContent" class="q-cert-flyout-content"></div>
             </div>
         </div>
+
+        <!-- Active Assets Chip (opens the Assets drawer) -->
+        <div class="status-chip-wrapper" data-action="toggle-assets" role="button" tabindex="0" aria-label="Open Active Assets">
+            <div class="status-chip">
+                <span class="status-dot" id="assetStatusDot"></span>
+                <span style="color:var(--green);">&#9654; <span id="hdrRunCount">-</span></span>
+                <span style="color:var(--amber);">&#9632; <span id="hdrStopCount">-</span></span>
+            </div>
+        </div>
     </div>
     <div class="header-right">
         <span class="header-badge">v3.3</span>

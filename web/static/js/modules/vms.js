@@ -718,6 +718,14 @@ export function loadVmList() {
                 tplEl.textContent = tplSelect ? tplSelect.options.length : '-';
             }
 
+            // Always-visible header chip (survives Active Assets moving to a drawer)
+            const hdrRun = document.getElementById("hdrRunCount");
+            const hdrStop = document.getElementById("hdrStopCount");
+            const hdrDot = document.getElementById("assetStatusDot");
+            if (hdrRun) hdrRun.textContent = running;
+            if (hdrStop) hdrStop.textContent = stopped;
+            if (hdrDot) hdrDot.className = 'status-dot' + (stopped > 0 ? ' warn' : '');
+
             updateProxmoxStripFromVms(vms);
         })
         .catch(err => {

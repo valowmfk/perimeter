@@ -72,24 +72,14 @@ body {
     overflow: hidden;
     display: grid;
     grid-template-columns: var(--rail-width) 1fr;
-    grid-template-rows: var(--header-height) 1fr var(--terminal-height);
+    grid-template-rows: var(--header-height) 1fr;
     grid-template-areas:
         "rail header"
-        "rail main"
-        "rail terminal";
-    transition: grid-template-rows 0.3s ease;
+        "rail main";
 }
 
 /* body.dark is legacy — no-op now (always dark) */
 body.dark { }
-
-body.terminal-open {
-    grid-template-rows: var(--header-height) 1fr var(--terminal-expanded);
-}
-
-body.terminal-max {
-    grid-template-rows: var(--header-height) 120px 1fr;
-}
 
 /* ── Accessibility ─────────────────────────────────────────── */
 .q-skip-link {
@@ -153,7 +143,8 @@ input:focus:not(:focus-visible) {
     flex-direction: column;
     padding: 8px 0;
     gap: 2px;
-    overflow: hidden;
+    overflow-y: auto;   /* scroll instead of silently clipping at 10+ drawers */
+    overflow-x: hidden;
 }
 
 .rail-btn {
@@ -383,11 +374,21 @@ input:focus:not(:focus-visible) {
 .main {
     grid-area: main;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1px;
+    grid-template-columns: minmax(0, 1fr) 5px minmax(0, var(--stream-width, 1fr));
     background: var(--border);
     overflow: hidden;
 }
+.main.stream-wide {
+    grid-template-columns: minmax(0, 1fr) 5px minmax(0, 2.4fr);
+}
+/* Draggable gutter between workspace and the persistent stream */
+.main-gutter {
+    background: var(--border);
+    cursor: col-resize;
+    transition: background 0.15s;
+}
+.main-gutter:hover,
+.main-gutter.dragging { background: var(--cyan); }
 
 .panel {
     background: var(--bg-deep);
@@ -1006,41 +1007,72 @@ button[disabled] {
    ══════════════════════════════════════════════════════════════ */
 
 .terminal {
-    grid-area: terminal;
+    flex: 1;
+    min-height: 0;
+    position: relative;
     background: var(--bg-deep);
-    border-top: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    z-index: 8;
     overflow: hidden;
 }
 
 .terminal-bar {
-    height: var(--terminal-height);
-    min-height: var(--terminal-height);
+    min-height: 36px;
     display: flex;
     align-items: center;
-    padding: 0 20px;
+    padding: 0 14px;
     gap: 10px;
     background: var(--bg-primary);
-    cursor: pointer;
     user-select: none;
     border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 2;
 }
 
-.terminal-bar:hover {
-    background: var(--bg-elevated);
-}
-
+/* State-driven stream dot: idle grey → streaming green pulse → failed red */
 .terminal-live {
     width: 6px;
     height: 6px;
     border-radius: 50%;
+    background: var(--text-faint);
+    flex-shrink: 0;
+    transition: background 0.2s, box-shadow 0.2s;
+}
+.terminal-live.streaming {
     background: var(--green);
     box-shadow: 0 0 6px var(--green);
     animation: pulse-dot 2s ease-in-out infinite;
-    flex-shrink: 0;
 }
+.terminal-live.failed {
+    background: var(--red);
+    box-shadow: 0 0 6px var(--red);
+}
+
+/* Persistent-stream pieces */
+.terminal-output { flex: 1; min-height: 0; }
+.stream-count { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); }
+.stream-controls { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.stream-empty {
+    position: absolute;
+    inset: 36px 0 24px 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    color: var(--text-faint); font-family: var(--font-mono); font-size: 11px; pointer-events: none;
+}
+.stream-empty .caret { font-size: 16px; animation: pulse-dot 1.4s ease-in-out infinite; }
+.terminal.has-output .stream-empty { display: none; }
+.stream-footer {
+    min-height: 24px; display: flex; align-items: center; gap: 8px;
+    padding: 0 14px; background: var(--bg-primary); border-top: 1px solid var(--border);
+    font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);
+}
+.jump-live-pill {
+    position: absolute; right: 16px; bottom: 34px; z-index: 5; display: none;
+    align-items: center; gap: 6px; padding: 4px 10px; border-radius: 12px; cursor: pointer;
+    background: var(--cyan-dim); border: 1px solid var(--border-active); color: var(--cyan-soft);
+    font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+}
+.jump-live-pill.show { display: inline-flex; }
 
 .terminal-label {
     font-family: var(--font-mono);
@@ -1126,9 +1158,9 @@ body.terminal-max .terminal-chevron {
 /* ── Log line colors ─────────────────────────────────────────── */
 
 .log-line { font-family: var(--font-mono); }
-.log-ok      { color: #7CFC00; }
-.log-changed { color: #FFD700; }
-.log-error   { color: #FF4500; }
+.log-ok      { color: var(--green); }
+.log-changed { color: var(--amber); }
+.log-error   { color: #fc8181; }
 .log-info    { color: var(--text-primary); }
 
 /* ── ANSI escape color classes ───────────────────────────────── */
@@ -1982,11 +2014,41 @@ code {
 
 /* These wrappers are removed from new HTML but may still exist
    in some partials — make them transparent */
-.q-panel,
 .q-panel-slim,
 .q-panel-wide,
 .q-panel-drawer-left {
     display: contents;
+}
+
+/* Drawer card — real visual chunking for stacked drawer sections */
+.q-panel {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+
+/* Drawer primitives (referenced across every drawer but previously undefined,
+   so they rendered invisible). border-top lets inline border-color tint it. */
+.q-divider {
+    height: 0;
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 12px 0;
+}
+.q-summary-line {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+.q-panel-subtitle {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
 }
 
 .q-container,

@@ -40,21 +40,70 @@ import { loadUpdatesOverview, checkNodes, refreshArgocd,
    Rail View Switching System
    ============================ */
 
+// Single source of truth for drawers. switchView derives from this; Tier B's
+// labeled sidebar + ⌘K palette will too. Add a drawer here + its template
+// include + (if it needs lazy-load) an ACTION_HANDLERS entry.
+const DRAWERS = [
+    { id: 'vmProvisionDrawer',           action: 'toggle-vm-provision', label: 'VM Orchestration', group: 'Compute' },
+    { id: 'fleetDrawer',                 action: 'toggle-fleet',        label: 'Fleet',            group: 'Compute' },
+    { id: 'ansibleOrchestrationDrawer',  action: 'toggle-ansible',      label: 'Ansible',          group: 'Config' },
+    { id: 'certificateManagementDrawer', action: 'toggle-certificates', label: 'Certificates',     group: 'Config' },
+    { id: 'dnsManagementDrawer',         action: 'toggle-dns',          label: 'DNS',              group: 'Config' },
+    { id: 'ipamDrawer',                  action: 'toggle-ipam',         label: 'IPAM',             group: 'Config' },
+    { id: 'vipManagerDrawer',            action: 'toggle-vip-manager',  label: 'vThunder',         group: 'Appliances' },
+    { id: 'updatesDrawer',               action: 'toggle-updates',      label: 'Updates',          group: 'Operations' },
+    { id: 'assetsDrawer',                action: 'toggle-assets',       label: 'Active Assets',    group: 'Operations' },
+];
+
+/* ── Persistent Live Stream controls ───────────────────────── */
+function clearStream() {
+    const o = document.getElementById('terminalLog');
+    if (o) { o.innerHTML = ''; const t = o.closest('.terminal'); if (t) t.classList.remove('has-output'); }
+    const c = document.getElementById('streamLineCount'); if (c) c.textContent = '';
+    const p = document.getElementById('jumpLivePill'); if (p) p.classList.remove('show');
+    const d = document.getElementById('streamLiveDot'); if (d) d.className = 'terminal-live';
+    const s = document.getElementById('streamStatus'); if (s) s.innerHTML = '○ idle';
+}
+function copyStream() {
+    const o = document.getElementById('terminalLog'); if (!o) return;
+    const text = o.innerText || o.textContent || '';
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => showToast('Stream copied')).catch(() => showToast('Copy failed'));
+}
+function toggleStreamWide() {
+    const m = document.getElementById('mainContent'); if (m) m.classList.toggle('stream-wide');
+}
+function jumpToLive() {
+    const o = document.getElementById('terminalLog'); if (o) o.scrollTop = o.scrollHeight;
+    const p = document.getElementById('jumpLivePill'); if (p) p.classList.remove('show');
+}
+
+/* Draggable gutter — resize the stream column, persisted per browser. */
+function initStreamGutter() {
+    const gutter = document.getElementById('mainGutter');
+    const main = document.getElementById('mainContent');
+    if (!gutter || !main) return;
+    try { const saved = localStorage.getItem('perimeter.streamWidth'); if (saved) main.style.setProperty('--stream-width', saved); } catch (e) {}
+    let dragging = false;
+    gutter.addEventListener('mousedown', (e) => { dragging = true; gutter.classList.add('dragging'); e.preventDefault(); });
+    document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const rect = main.getBoundingClientRect();
+        const w = Math.max(280, Math.min(rect.width - 360, rect.right - e.clientX));
+        main.style.setProperty('--stream-width', w + 'px');
+    });
+    document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false; gutter.classList.remove('dragging');
+        try { const v = main.style.getPropertyValue('--stream-width'); if (v) localStorage.setItem('perimeter.streamWidth', v); } catch (e) {}
+    });
+}
+
 function switchView(drawerId) {
     const drawer = document.getElementById(drawerId);
     if (!drawer) return;
 
-    // Map of drawer IDs to their toggle data-action values
-    const views = [
-        { id: 'vmProvisionDrawer',           action: 'toggle-vm-provision' },
-        { id: 'fleetDrawer',                action: 'toggle-fleet' },
-        { id: 'ansibleOrchestrationDrawer',  action: 'toggle-ansible' },
-        { id: 'certificateManagementDrawer', action: 'toggle-certificates' },
-        { id: 'dnsManagementDrawer',         action: 'toggle-dns' },
-        { id: 'ipamDrawer',                 action: 'toggle-ipam' },
-        { id: 'vipManagerDrawer',            action: 'toggle-vip-manager' },
-        { id: 'updatesDrawer',               action: 'toggle-updates' }
-    ];
+    // Drawer id → toggle action map (single source of truth: DRAWERS)
+    const views = DRAWERS;
 
     // Close all drawers
     views.forEach(item => {
@@ -129,23 +178,13 @@ const ACTION_HANDLERS = {
 
     // Simple drawers
     'toggle-telemetry':      toggleTelemetry,
-    'toggle-assets':         () => {},  // Assets always visible in Mission Control layout
-    'toggle-terminal':       () => {
-        if (document.body.classList.contains('terminal-max')) {
-            document.body.classList.remove('terminal-max');
-        } else {
-            document.body.classList.toggle('terminal-open');
-        }
-    },
-    'maximize-terminal':     () => {
-        if (document.body.classList.contains('terminal-max')) {
-            document.body.classList.remove('terminal-max');
-            document.body.classList.add('terminal-open');
-        } else {
-            document.body.classList.remove('terminal-open');
-            document.body.classList.add('terminal-max');
-        }
-    },
+    // Active Assets moved out of the always-on right panel into a drawer
+    'toggle-assets':         () => { switchView('assetsDrawer'); loadVmList(); },
+    // Persistent Live Stream controls
+    'clear-stream':          clearStream,
+    'copy-stream':           copyStream,
+    'stream-wide':           toggleStreamWide,
+    'jump-to-live':          jumpToLive,
     'toggle-proxmox-flyout': toggleProxmoxFlyout,
 
     // Template management
@@ -226,6 +265,10 @@ document.addEventListener('click', function(e) {
         // Close fleet flyout on overlay click
         const fleetOverlay = document.getElementById('fleetFlyoutOverlay');
         if (fleetOverlay && e.target === fleetOverlay) closeFleetFlyout();
+        // Close cert modal on overlay (outside-box) click — e.target check,
+        // not stopPropagation on inner elements (see tasks/lessons.md)
+        const certOverlay = document.getElementById('certViewModal');
+        if (certOverlay && e.target === certOverlay) closeCertViewModal();
         return;
     }
 
@@ -394,9 +437,9 @@ function bindEvents() {
     const dnsRecordType = document.getElementById('dnsRecordType');
     if (dnsRecordType) dnsRecordType.addEventListener('change', toggleDnsFields);
 
-    // Prevent clicks inside cert modal from closing it (overlay has close action)
-    const certModal = document.querySelector('.q-cert-modal');
-    if (certModal) certModal.addEventListener('click', e => e.stopPropagation());
+    // Cert modal outside-click close is handled in the click-delegation branch
+    // via an e.target === overlay check — no stopPropagation on inner elements
+    // (that would kill event delegation; see tasks/lessons.md).
 
     // Fleet flyout: Escape to close
     document.addEventListener('keydown', function(e) {
@@ -427,8 +470,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Default to VM Orchestration view on load
     switchView('vmProvisionDrawer');
 
-    // Open terminal by default
-    document.body.classList.add('terminal-open');
+    // Persistent stream column — make the divider draggable
+    initStreamGutter();
 });
 
 window.addEventListener('load', () => {

@@ -75,6 +75,10 @@
             <span class="rail-tooltip">Updates</span>
         </button>
         {% endif %}
+        <button class="rail-btn" data-action="toggle-assets" aria-label="Active Assets">
+            <span class="rail-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><line x1="7" y1="7" x2="7.01" y2="7"/><line x1="7" y1="17" x2="7.01" y2="17"/></svg></span>
+            <span class="rail-tooltip">Active Assets</span>
+        </button>
     </div>
     <div class="rail-bottom">
         <button class="rail-btn" aria-label="Settings">
@@ -101,19 +105,21 @@
             {% if features.ipam %}{% include 'drawers/_ipam.html' %}{% endif %}
             {% if features.vthunder %}{% include 'drawers/_vthunder.html' %}{% endif %}
             {% if features.updates %}{% include 'drawers/_updates.html' %}{% endif %}
+            {% include 'drawers/_assets.html' %}
         </div>
     </div>
 
-    <!-- RIGHT: Assets Panel -->
-    <div class="panel" id="assetsPanel">
-        {% include 'partials/_assets.html' %}
+    <!-- Draggable gutter -->
+    <div class="main-gutter" id="mainGutter" role="separator" aria-orientation="vertical" title="Drag to resize the stream"></div>
+
+    <!-- RIGHT: persistent Live Stream -->
+    <div class="panel" id="streamPanel">
+        {% include 'partials/_terminal.html' %}
     </div>
 </div>
 
-{% include 'partials/_terminal.html' %}
-
 <!-- JavaScript -->
-<script type="module" src="/static/js/app.js?v=20261026a"></script>
+<script type="module" src="/static/js/app.js?v=20261026b"></script>
 
 
 </body>
