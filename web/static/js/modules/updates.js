@@ -327,8 +327,49 @@ export function deleteSchedule(el) {
 
 function runStatusBadge(status) {
     const map = { 'running': 'q-badge-yellow', 'success': 'q-badge-green',
-                  'failed': 'q-badge-red', 'error': 'q-badge-red' };
+                  'partial': 'q-badge-orange', 'failed': 'q-badge-red', 'error': 'q-badge-red' };
     return `<span class="q-badge ${map[status] || 'q-badge-grey'}">${esc(status || '?')}</span>`;
+}
+
+// Inline "why", next to the badge: "3 ok · 2 unreachable · 1 failed".
+function recapSummary(recap) {
+    const t = { ok: 0, unreachable: 0, failed: 0 };
+    recap.forEach(h => {
+        if (h.failed > 0) t.failed++;
+        else if (h.unreachable > 0) t.unreachable++;
+        else t.ok++;
+    });
+    const parts = [];
+    if (t.ok) parts.push(`${t.ok} ok`);
+    if (t.unreachable) parts.push(`${t.unreachable} unreachable`);
+    if (t.failed) parts.push(`${t.failed} failed`);
+    return parts.length ? ` <span class="run-summary">${esc(parts.join(' · '))}</span>` : '';
+}
+
+// Per-host chips in the expanded detail row, colored by worst outcome.
+function recapChips(recap) {
+    return recap.map(h => {
+        let cls = 'q-badge-green', tag = 'ok';
+        if (h.failed > 0) { cls = 'q-badge-red'; tag = 'failed'; }
+        else if (h.unreachable > 0) { cls = 'q-badge-orange'; tag = 'unreachable'; }
+        else if (h.changed > 0) { cls = 'q-badge-yellow'; tag = 'changed'; }
+        const counts = `ok ${h.ok}` + (h.changed ? ` · ${h.changed} chg` : '')
+            + (h.failed ? ` · ${h.failed} fail` : '');
+        return `<span class="run-host"><span class="q-badge ${cls}">${esc(h.host)}</span>`
+            + `<span class="run-host-meta">${esc(tag)} · ${esc(counts)}</span></span>`;
+    }).join('');
+}
+
+// Toggle a run's expandable host-recap detail row.
+export function toggleRunDetail(el) {
+    const id = el && el.dataset ? el.dataset.runId : null;
+    if (id == null) return;
+    const row = document.getElementById(`runDetail-${id}`);
+    if (!row) return;
+    const opening = row.hidden;
+    row.hidden = !opening;
+    el.textContent = opening ? '▾' : '▸';  // ▾ / ▸
+    el.setAttribute('aria-expanded', opening ? 'true' : 'false');
 }
 
 function rebootBadge(r) {
@@ -350,14 +391,28 @@ function renderRuns(runs) {
     if (!runs.length) {
         body.innerHTML = '<tr><td colspan="5" style="opacity:.6">No runs yet.</td></tr>';
     } else {
-        body.innerHTML = runs.map(r => `
+        body.innerHTML = runs.map(r => {
+            const st = r.status_display || r.status;
+            const recap = r.recap || [];
+            const hasDetail = recap.length > 0;
+            const caret = hasDetail
+                ? ` <button type="button" class="run-expand" data-action="toggle-run-detail" data-run-id="${esc(r.id)}" aria-expanded="false" aria-label="Show per-host results">▸</button>`
+                : '';
+            const main = `
             <tr>
                 <td>${esc(fmtWhen(r.started_at, r.ended_at))}</td>
                 <td>${esc(r.group_name || '—')}</td>
                 <td>${esc((r.playbook || '').replace(/\.ya?ml$/, ''))}</td>
-                <td>${runStatusBadge(r.status)}</td>
+                <td>${runStatusBadge(st)}${hasDetail ? recapSummary(recap) : ''}${caret}</td>
                 <td>${rebootBadge(r.reboot)}</td>
-            </tr>`).join('');
+            </tr>`;
+            const detail = hasDetail ? `
+            <tr class="run-detail" id="runDetail-${esc(r.id)}" hidden>
+                <td></td>
+                <td colspan="4"><div class="run-hosts">${recapChips(recap)}</div></td>
+            </tr>` : '';
+            return main + detail;
+        }).join('');
     }
     if (meta) meta.textContent = runs.length ? `${runs.length} run(s)` : 'No runs yet';
 }

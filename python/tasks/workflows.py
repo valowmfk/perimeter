@@ -18,7 +18,7 @@ from utils.metrics import VM_PROVISIONS, VM_PROVISIONS_ACTIVE, PLAYBOOK_RUNS, \
 _redis = redis.Redis.from_url(cfg.REDIS_URL)
 
 
-def _run_subprocess(task, cmd, cwd, env_extra=None, channel=None):
+def _run_subprocess(task, cmd, cwd, env_extra=None, channel=None, capture_recap=False):
     """Run a subprocess and publish stdout to Redis pub/sub.
 
     Args:
@@ -27,9 +27,11 @@ def _run_subprocess(task, cmd, cwd, env_extra=None, channel=None):
         cwd: Working directory
         env_extra: Additional environment variables
         channel: Redis pub/sub channel (defaults to perimeter:task:<task_id>)
+        capture_recap: keep the final Ansible "PLAY RECAP" block (bounded — only
+            the last recap's host lines) and return it as result["recap"]
 
     Returns:
-        dict with returncode and status
+        dict with returncode and status (+ recap when capture_recap)
     """
     task_id = task.request.id
     pub_channel = channel or f"perimeter:task:{task_id}"
@@ -54,6 +56,9 @@ def _run_subprocess(task, cmd, cwd, env_extra=None, channel=None):
     })
     _redis.expire(f"perimeter:job:{task_id}", 7200)  # 2 hour TTL
 
+    recap_lines = []
+    in_recap = False
+
     try:
         proc = subprocess.Popen(
             cmd,
@@ -66,7 +71,13 @@ def _run_subprocess(task, cmd, cwd, env_extra=None, channel=None):
         )
 
         for line in proc.stdout:
-            _redis.publish(pub_channel, line.rstrip())
+            s = line.rstrip()
+            _redis.publish(pub_channel, s)
+            if capture_recap:
+                if "PLAY RECAP" in s:
+                    in_recap, recap_lines = True, []   # keep only the final recap
+                elif in_recap and s.strip():
+                    recap_lines.append(s)
 
         try:
             proc.wait(timeout=3600)
@@ -92,7 +103,10 @@ def _run_subprocess(task, cmd, cwd, env_extra=None, channel=None):
         "returncode": str(returncode),
     })
 
-    return {"returncode": returncode, "status": status, "task_id": task_id}
+    result = {"returncode": returncode, "status": status, "task_id": task_id}
+    if capture_recap:
+        result["recap"] = "\n".join(recap_lines)
+    return result
 
 
 # ── VM Provisioning ──────────────────────────────────────
@@ -234,7 +248,7 @@ def run_node_update(self, playbook_path, inventory_path, group="",
         if extra_vars:
             cmd += ["--extra-vars", json.dumps(extra_vars)]
 
-        result = _run_subprocess(self, cmd, str(cfg.ROOT_DIR))
+        result = _run_subprocess(self, cmd, str(cfg.ROOT_DIR), capture_recap=True)
         PLAYBOOK_RUNS.labels(playbook=playbook_name, status=result["status"]).inc()
 
         # Snapshot kernels after; reboot = any targeted host's kernel changed
@@ -249,11 +263,13 @@ def run_node_update(self, playbook_path, inventory_path, group="",
         if before and after:
             reboot = any(before.get(h) != after.get(h) for h in before)
 
+        recap = run_history.parse_recap(result.get("recap", ""))
         if run_id is not None:
             run_history.record_end(
                 run_id, result["status"],
                 json.dumps(after) if after else None,
                 reboot, str(result.get("returncode")),
+                json.dumps(recap) if recap else None,
             )
         return result
     except Exception as e:

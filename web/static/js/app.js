@@ -33,7 +33,7 @@ import { initVipManager, loadVips, openVipBuilder, closeVipBuilder,
          openVipDestroy, confirmVipDestroy, cancelVipDestroy } from './modules/vthunder.js';
 import { loadUpdatesOverview, checkNodes, refreshArgocd,
          runNodeUpdate, refreshRuns, onUpdatesGroupChange,
-         refreshRenovate, syncArgoApp,
+         refreshRenovate, syncArgoApp, toggleRunDetail,
          createSchedule, toggleSchedule, deleteSchedule, onSchedFreqChange } from './modules/updates.js';
 
 /* ============================
@@ -216,6 +216,7 @@ const ACTION_HANDLERS = {
     // Updates page actions (node execute)
     'run-node-update':       runNodeUpdate,
     'refresh-runs':          refreshRuns,
+    'toggle-run-detail':     (el) => toggleRunDetail(el),
     // Updates page actions (pod orchestrate)
     'refresh-renovate':      refreshRenovate,
     'sync-argocd-app':       (el) => syncArgoApp(el),
