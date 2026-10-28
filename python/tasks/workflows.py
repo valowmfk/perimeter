@@ -43,6 +43,12 @@ def _run_subprocess(task, cmd, cwd, env_extra=None, channel=None, capture_recap=
         if os.path.exists(age_key):
             env["SOPS_AGE_KEY_FILE"] = age_key
 
+    # Use the repo ansible.cfg explicitly (tunes the SSH control-persist pool).
+    # Harmless for non-ansible subprocesses, which ignore ANSIBLE_CONFIG.
+    ansible_cfg = cfg.ROOT_DIR / "ansible.cfg"
+    if "ANSIBLE_CONFIG" not in env and ansible_cfg.exists():
+        env["ANSIBLE_CONFIG"] = str(ansible_cfg)
+
     if env_extra:
         env.update(env_extra)
     env["PERIMETER_CORRELATION_ID"] = task_id
