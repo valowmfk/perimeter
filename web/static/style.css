@@ -2294,6 +2294,9 @@ code {
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
 }
+.run-log-actions {
+    padding: 2px 0 6px;
+}
 
 /* ══════════════════════════════════════════════════════════════
    LEGACY COMPATIBILITY (classes referenced by unchanged code)

@@ -173,3 +173,15 @@ def get_run(run_id: int) -> dict | None:
             "SELECT * FROM node_update_runs WHERE id=?", (int(run_id),)
         ).fetchone()
         return _enrich(dict(row)) if row else None
+
+
+def is_run_complete(session_id: str) -> bool:
+    """True if the run recorded under this session/task id has finished (ended_at
+    set). Used by the durable-log endpoint so the live poller knows when to stop.
+    A missing row (run just starting) reads as not-complete, so polling continues."""
+    with _db() as conn:
+        row = conn.execute(
+            "SELECT ended_at FROM node_update_runs WHERE session_id=? "
+            "ORDER BY id DESC LIMIT 1", (session_id,)
+        ).fetchone()
+    return bool(row and row["ended_at"])

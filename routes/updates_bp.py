@@ -191,6 +191,25 @@ def api_updates_nodes_run_detail(run_id):
     return jsonify(run)
 
 
+@updates_bp.route("/api/updates/nodes/runs/log/<task_id>")
+def api_updates_nodes_run_log(task_id):
+    """Full durable stdout log for a run, keyed by task_id (== the run row's
+    session_id). Lets the terminal recover output after an SSE drop and lets
+    history show a past run's complete log. `complete` is derived from the run
+    row's ended_at so the live poller knows when to stop."""
+    from helpers import run_history
+    if not is_safe_filename(task_id):
+        return api_error("invalid task id")
+    log_path = cfg.ROOT_DIR / "state" / "run_logs" / f"{task_id}.log"
+    content = ""
+    if log_path.exists():
+        try:
+            content = log_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            content = ""
+    return jsonify({"content": content, "complete": run_history.is_run_complete(task_id)})
+
+
 @updates_bp.route("/api/updates/nodes/running")
 def api_updates_nodes_running():
     """Groups with an in-progress node update (locked) — for button state."""

@@ -17,6 +17,23 @@ from utils.metrics import VM_PROVISIONS, VM_PROVISIONS_ACTIVE, PLAYBOOK_RUNS, \
 
 _redis = redis.Redis.from_url(cfg.REDIS_URL)
 
+RUN_LOG_DIR = cfg.ROOT_DIR / "state" / "run_logs"
+RUN_LOG_MAX_AGE_DAYS = 30
+
+
+def _prune_run_logs(log_dir, max_age_days=RUN_LOG_MAX_AGE_DAYS):
+    """Delete run logs older than max_age_days (bounds disk; best-effort)."""
+    cutoff = time.time() - max_age_days * 86400
+    try:
+        for p in log_dir.glob("*.log"):
+            try:
+                if p.stat().st_mtime < cutoff:
+                    p.unlink()
+            except OSError:
+                pass
+    except OSError:
+        pass
+
 
 def _run_subprocess(task, cmd, cwd, env_extra=None, channel=None, capture_recap=False):
     """Run a subprocess and publish stdout to Redis pub/sub.
@@ -65,6 +82,19 @@ def _run_subprocess(task, cmd, cwd, env_extra=None, channel=None, capture_recap=
     recap_lines = []
     in_recap = False
 
+    # Durable run log: tee stdout to state/run_logs/<task_id>.log so the UI can
+    # recover the full output after an SSE drop (e.g. Traefik rescheduling the
+    # ingress mid-run) and so history can show a past run's complete log. Keyed
+    # by task_id, which record_start also stores as the run row's session_id.
+    # Best-effort — a logging failure must never fail the run.
+    log_fh = None
+    try:
+        RUN_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        _prune_run_logs(RUN_LOG_DIR)
+        log_fh = open(RUN_LOG_DIR / f"{task_id}.log", "a", encoding="utf-8")
+    except OSError:
+        log_fh = None
+
     try:
         proc = subprocess.Popen(
             cmd,
@@ -79,6 +109,12 @@ def _run_subprocess(task, cmd, cwd, env_extra=None, channel=None, capture_recap=
         for line in proc.stdout:
             s = line.rstrip()
             _redis.publish(pub_channel, s)
+            if log_fh is not None:
+                try:
+                    log_fh.write(s + "\n")
+                    log_fh.flush()
+                except OSError:
+                    pass
             if capture_recap:
                 if "PLAY RECAP" in s:
                     in_recap, recap_lines = True, []   # keep only the final recap
@@ -108,6 +144,12 @@ def _run_subprocess(task, cmd, cwd, env_extra=None, channel=None, capture_recap=
         "finished_at": str(time.time()),
         "returncode": str(returncode),
     })
+
+    if log_fh is not None:
+        try:
+            log_fh.close()
+        except OSError:
+            pass
 
     result = {"returncode": returncode, "status": status, "task_id": task_id}
     if capture_recap:

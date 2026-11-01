@@ -372,6 +372,27 @@ export function toggleRunDetail(el) {
     el.setAttribute('aria-expanded', opening ? 'true' : 'false');
 }
 
+// Load a past run's full durable log into the terminal (keyed by task_id,
+// stored as the run row's session_id). Recovers output that an SSE drop lost,
+// and makes early-failure runs (no recap) inspectable after the fact.
+export function viewRunLog(el) {
+    const taskId = el && el.dataset ? el.dataset.taskId : null;
+    if (!taskId) return;
+    const done = withBusy('view-run-log');
+    fetch(`/api/updates/nodes/runs/log/${encodeURIComponent(taskId)}`)
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        .then(d => {
+            const lines = (d.content || '').split('\n');
+            if (lines.length && lines[lines.length - 1] === '') lines.pop();
+            if (!lines.length) { showToast('No log recorded for this run'); return; }
+            appendLogLine(`[updates] ── full log for run ${taskId} (${lines.length} lines) ──`);
+            lines.forEach(l => appendLogLine(l));
+            appendLogLine('[updates] ── end of log ──');
+        })
+        .catch(err => showToast(`Log load failed: ${err.message}`))
+        .finally(() => done());
+}
+
 function rebootBadge(r) {
     if (r === 1 || r === true) return '<span class="q-badge q-badge-orange">rebooted</span>';
     if (r === 0 || r === false) return '<span class="q-badge q-badge-grey">no</span>';
@@ -394,22 +415,32 @@ function renderRuns(runs) {
         body.innerHTML = runs.map(r => {
             const st = r.status_display || r.status;
             const recap = r.recap || [];
-            const hasDetail = recap.length > 0;
+            const hasRecap = recap.length > 0;
+            const hasLog = !!r.session_id;
+            // Expand whenever there's a per-host recap OR a durable log — the
+            // latter covers early-failure runs that never produced a recap.
+            const hasDetail = hasRecap || hasLog;
             const caret = hasDetail
-                ? ` <button type="button" class="run-expand" data-action="toggle-run-detail" data-run-id="${esc(r.id)}" aria-expanded="false" aria-label="Show per-host results">▸</button>`
+                ? ` <button type="button" class="run-expand" data-action="toggle-run-detail" data-run-id="${esc(r.id)}" aria-expanded="false" aria-label="Show run detail">▸</button>`
+                : '';
+            const logBtn = hasLog
+                ? `<button type="button" class="q-mini-btn" data-action="view-run-log" data-task-id="${esc(r.session_id)}">View full log</button>`
                 : '';
             const main = `
             <tr>
                 <td>${esc(fmtWhen(r.started_at, r.ended_at))}</td>
                 <td>${esc(r.group_name || '—')}</td>
                 <td>${esc((r.playbook || '').replace(/\.ya?ml$/, ''))}</td>
-                <td>${runStatusBadge(st)}${hasDetail ? recapSummary(recap) : ''}${caret}</td>
+                <td>${runStatusBadge(st)}${hasRecap ? recapSummary(recap) : ''}${caret}</td>
                 <td>${rebootBadge(r.reboot)}</td>
             </tr>`;
             const detail = hasDetail ? `
             <tr class="run-detail" id="runDetail-${esc(r.id)}" hidden>
                 <td></td>
-                <td colspan="4"><div class="run-hosts">${recapChips(recap)}</div></td>
+                <td colspan="4">
+                    ${hasRecap ? `<div class="run-hosts">${recapChips(recap)}</div>` : ''}
+                    ${logBtn ? `<div class="run-log-actions">${logBtn}</div>` : ''}
+                </td>
             </tr>` : '';
             return main + detail;
         }).join('');
@@ -492,26 +523,62 @@ export function runNodeUpdate() {
         return resp.json();
     })
     .then(data => {
+        // taskId == the run row's session_id == the durable-log key. SSE is the
+        // live fast path; if it drops mid-run (Traefik rescheduling the ingress
+        // during a k3s update is the weekly case), we fall back to polling the
+        // durable log and append whatever lines we missed, through completion.
+        const taskId = data.session_id;
+        let renderedLines = 0;      // server stdout lines appended (not the client header)
+        let finished = false;
+        const pollDeadline = Date.now() + 30 * 60 * 1000;
+
+        const finalize = () => {
+            if (finished) return;
+            finished = true;
+            done();
+            if (statusEl) statusEl.textContent = 'Finalizing (drift re-check)…';
+            showToast('Update finished — recording result');
+            loadUpdatesOverview();                       // refresh drift
+            // kernel-after + status land after the post-run drift check; poll.
+            [2000, 6000, 12000].forEach(t => setTimeout(loadRunHistory, t));
+            setTimeout(syncRunControls, 2000);
+        };
+
+        // Catch-up: replay the durable log, appending only lines past what SSE
+        // already showed (de-dup by line index — robust to multibyte output).
+        const pollLog = () => {
+            if (finished) return;
+            fetch(`/api/updates/nodes/runs/log/${encodeURIComponent(taskId)}`)
+                .then(r => r.json())
+                .then(d => {
+                    if (finished) return;
+                    const lines = (d.content || '').split('\n');
+                    if (lines.length && lines[lines.length - 1] === '') lines.pop();
+                    for (let i = renderedLines; i < lines.length; i++) appendLogLine(lines[i]);
+                    renderedLines = Math.max(renderedLines, lines.length);
+                    if (d.complete) finalize();
+                    else if (Date.now() < pollDeadline) setTimeout(pollLog, 2000);
+                    else { if (statusEl) statusEl.textContent = ''; showToast('Gave up recovering stream — check history'); syncRunControls(); }
+                })
+                .catch(() => { if (!finished && Date.now() < pollDeadline) setTimeout(pollLog, 3000); });
+        };
+
         const es = new EventSource(data.stream_url);
         es.onmessage = (event) => {
             if (event.data === '__COMPLETE__') {
                 es.close();
-                done();
-                if (statusEl) statusEl.textContent = 'Finalizing (drift re-check)…';
-                showToast('Update finished — recording result');
-                loadUpdatesOverview();                       // refresh drift
-                // kernel-after + status land after the post-run drift check; poll.
-                [2000, 6000, 12000].forEach(t => setTimeout(loadRunHistory, t));
-                setTimeout(syncRunControls, 2000);
+                finalize();
             } else {
                 appendLogLine(event.data);
+                renderedLines++;
             }
         };
         es.onerror = () => {
-            es.close(); done();
-            if (statusEl) statusEl.textContent = '';
-            showToast('Error streaming update output');
-            syncRunControls();
+            es.close();
+            if (finished) return;
+            if (statusEl) statusEl.textContent = 'Stream dropped — recovering from durable log…';
+            showToast('Live stream dropped — recovering output from the log');
+            pollLog();
         };
     })
     .catch(err => {
