@@ -212,6 +212,28 @@ def bootstrap_vm(self, hostname, ip):
 
 # ── Playbook Execution ───────────────────────────────────
 
+def _playbook_is_localhost_only(playbook_path) -> bool:
+    """True only if EVERY play in the playbook targets localhost. Used to decide
+    whether `-l <group>` is meaningful: a localhost-only playbook limited to a
+    group (which has no localhost) would run nothing, so we skip the limit there.
+
+    Parses YAML rather than scanning text — a substring check matched the literal
+    `hosts: localhost` inside a COMMENT in updates-check.yml (a hosts:all play),
+    wrongly dropped the limit, and ran the drift check against the whole
+    inventory. Parse failure → False (apply the limit; the common, safe case)."""
+    try:
+        import yaml
+        with open(playbook_path) as f:
+            plays = yaml.safe_load(f)
+    except Exception:
+        return False
+    if not isinstance(plays, list):
+        return False
+    hosts_vals = [str(p["hosts"]).strip() for p in plays
+                  if isinstance(p, dict) and "hosts" in p]
+    return bool(hosts_vals) and all(h in ("localhost", "127.0.0.1") for h in hosts_vals)
+
+
 @celery.task(bind=True, name="perimeter.run_playbook")
 def run_playbook(self, playbook_path, inventory_path, group="", verbosity="",
                  ssh_key="~/.ssh/ansible_perimeter"):
@@ -225,18 +247,10 @@ def run_playbook(self, playbook_path, inventory_path, group="", verbosity="",
         playbook_path,
     ]
 
-    if group:
-        # Check if playbook targets localhost
-        apply_limit = True
-        try:
-            with open(playbook_path, 'r') as f:
-                content = f.read()
-                if 'hosts: localhost' in content or 'hosts: "localhost"' in content:
-                    apply_limit = False
-        except Exception:
-            pass
-        if apply_limit:
-            cmd.extend(["-l", group])
+    # Scope to the selected inventory group, unless the playbook is localhost-only
+    # (where a group limit would match nothing).
+    if group and not _playbook_is_localhost_only(playbook_path):
+        cmd.extend(["-l", group])
 
     if verbosity:
         cmd.append(verbosity)
