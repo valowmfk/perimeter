@@ -192,7 +192,10 @@
       args:
         executable: /bin/bash
       register: node_status
-      until: node_status.stdout == "Ready"
+      # The node is still cordoned at this stage (uncordon is step 8), so kubectl
+      # reports STATUS as "Ready,SchedulingDisabled". Compare only the readiness
+      # field so the gate passes on a healthy-but-cordoned node (but NOT NotReady).
+      until: node_status.stdout.split(',')[0] == "Ready"
       retries: "{{ health_retries }}"
       delay: "{{ health_delay }}"
       changed_when: false
