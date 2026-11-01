@@ -253,7 +253,7 @@
           Kernel after:     {{ after_kernel.stdout }}
           Kernel changed:   {{ kernel_changed }}
           Reboot triggered: {{ should_reboot }}
-          Node Ready:       {{ node_status.stdout }}
+          Node Ready:       {{ node_status.stdout.split(',')[0] }}
           Nodes Ready:      {{ ready_count.stdout }}/{{ expected_node_count }}
           etcd has leader:  {{ etcd_leader.stdout | trim }}
           Uncordoned:       {{ 'yes' if uncordon_out is defined else 'no' }}
