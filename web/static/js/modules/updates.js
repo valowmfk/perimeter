@@ -149,26 +149,87 @@ function renovateDepChip(u) {
         + `</span>`;
 }
 
-// A PR row. Grouped PRs (>1 parsed dep) get a muted sub-row listing what they
-// bundle; single-dep PRs render exactly as before.
-function renovateRow(p) {
-    const ups = p.updates || [];
-    const grouped = ups.length > 1;
-    const countChip = grouped ? ` <span class="q-badge q-badge-grey">${ups.length} deps</span>` : '';
-    const main = `
-            <tr>
-                <td><a href="${esc(p.url)}" target="_blank" rel="noopener">#${esc(p.number)}</a></td>
-                <td>${esc(p.title)}${countChip}</td>
-                <td>${tierBadge(p.tiers)}</td>
-                <td><a class="q-mini-btn" href="${esc(p.url)}" target="_blank" rel="noopener" title="Review PR">Review ⬈</a></td>
-            </tr>`;
-    if (!grouped) return main;
-    const sub = `
+// A grouped PR's muted dep-list sub-row (shared by normal/warn/blocked rows).
+function renovateDepsSub(ups) {
+    return `
             <tr class="renovate-sub">
                 <td></td>
                 <td colspan="3"><div class="renovate-deps">${ups.map(renovateDepChip).join('')}</div></td>
             </tr>`;
-    return main + sub;
+}
+
+// A PR row. Layer-3 guard shapes the action cell:
+//   blocked → NO Review link; a blocked state (reason + runbook) + a two-step
+//             typed-name override that, once confirmed, reveals the link.
+//   warn    → caution badge + reason, link kept.
+//   else    → exactly as before.
+// Grouped PRs (>1 parsed dep) still get the muted dep-list sub-row.
+function renovateRow(p) {
+    const ups = p.updates || [];
+    const grouped = ups.length > 1;
+    const countChip = grouped ? ` <span class="q-badge q-badge-grey">${ups.length} deps</span>` : '';
+    const g = p.guard || null;
+    const verband = (g && g.from && g.to) ? ` <code>${esc(g.from)} → ${esc(g.to)}</code>` : '';
+    const runbookLink = (g && g.runbook)
+        ? ` <a href="${esc(g.runbook)}" target="_blank" rel="noopener" class="renovate-runbook">Runbook ↗</a>` : '';
+
+    if (p.blocked && g) {
+        const name = esc(g.name || 'protected workload');
+        const main = `
+            <tr class="renovate-blocked">
+                <td><a href="${esc(p.url)}" target="_blank" rel="noopener">#${esc(p.number)}</a></td>
+                <td>${esc(p.title)}${countChip} <span class="q-badge q-badge-red">⛔ protected</span></td>
+                <td>${tierBadge(p.tiers)}</td>
+                <td><button type="button" class="q-mini-btn q-mini-btn-danger" data-action="renovate-override-start" data-pr="${esc(p.number)}">Override…</button></td>
+            </tr>`;
+        const detail = `
+            <tr class="renovate-sub renovate-block-detail">
+                <td></td>
+                <td colspan="3">
+                    <div class="renovate-block-reason">
+                        <strong>${name}</strong>${verband} — major blocked. ${esc(g.reason || '')}${runbookLink}
+                    </div>
+                    <div class="renovate-override" data-pr="${esc(p.number)}" hidden>
+                        <label class="renovate-override-type">Type <code>${name}</code> to confirm
+                            <input type="text" class="renovate-override-input" autocomplete="off" spellcheck="false" placeholder="${name}">
+                        </label>
+                        <label class="renovate-override-ack">
+                            <input type="checkbox" class="renovate-override-check">
+                            I have run the migration or have a tested restore plan.
+                        </label>
+                        <button type="button" class="q-mini-btn q-mini-btn-danger"
+                            data-action="renovate-override-confirm"
+                            data-pr="${esc(p.number)}"
+                            data-name="${esc(g.name || '')}"
+                            data-expect="${name}"
+                            data-from="${esc(g.from || '')}"
+                            data-to="${esc(g.to || '')}"
+                            data-url="${esc(p.url)}">Confirm override</button>
+                        <span class="renovate-override-msg" aria-live="polite"></span>
+                    </div>
+                </td>
+            </tr>`;
+        return main + detail + (grouped ? renovateDepsSub(ups) : '');
+    }
+
+    const warnBadge = p.warn ? ' <span class="q-badge q-badge-yellow">⚠ caution</span>' : '';
+    const main = `
+            <tr${p.warn ? ' class="renovate-warn"' : ''}>
+                <td><a href="${esc(p.url)}" target="_blank" rel="noopener">#${esc(p.number)}</a></td>
+                <td>${esc(p.title)}${countChip}${warnBadge}</td>
+                <td>${tierBadge(p.tiers)}</td>
+                <td><a class="q-mini-btn" href="${esc(p.url)}" target="_blank" rel="noopener" title="Review PR">Review ⬈</a></td>
+            </tr>`;
+    let subs = '';
+    if (p.warn && g) {
+        subs += `
+            <tr class="renovate-sub">
+                <td></td>
+                <td colspan="3"><div class="renovate-warn-reason">${esc(g.reason || '')}${runbookLink}</div></td>
+            </tr>`;
+    }
+    if (grouped) subs += renovateDepsSub(ups);
+    return main + subs;
 }
 
 export function refreshRenovate() {
@@ -176,6 +237,62 @@ export function refreshRenovate() {
         .then(r => r.json())
         .then(renderRenovate)
         .catch(err => showToast(`Renovate refresh failed: ${err.message}`));
+}
+
+// Layer-3 override — step 1: reveal the typed-name confirm form for this PR.
+export function renovateOverrideStart(el) {
+    const pr = el.getAttribute('data-pr');
+    const form = document.querySelector(`.renovate-override[data-pr="${CSS.escape(pr)}"]`);
+    if (!form) return;
+    form.hidden = false;
+    el.disabled = true;
+    const input = form.querySelector('.renovate-override-input');
+    if (input) input.focus();
+}
+
+// Layer-3 override — step 2: validate (typed name + ack) at click time, record
+// the override server-side (audit trail, NOT a merge), then reveal the link.
+export function renovateOverrideConfirm(el) {
+    const form = el.closest('.renovate-override');
+    if (!form) return;
+    const msg = form.querySelector('.renovate-override-msg');
+    const input = form.querySelector('.renovate-override-input');
+    const check = form.querySelector('.renovate-override-check');
+    const expect = el.getAttribute('data-expect') || '';
+    const typed = ((input && input.value) || '').trim();
+
+    if (typed.toLowerCase() !== expect.toLowerCase()) {
+        if (msg) msg.textContent = 'Name does not match.';
+        return;
+    }
+    if (check && !check.checked) {
+        if (msg) msg.textContent = 'Confirm you have run the migration or have a restore plan.';
+        return;
+    }
+    if (msg) msg.textContent = '';
+    el.disabled = true;
+    fetch('/api/updates/renovate/override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            number: parseInt(el.getAttribute('data-pr'), 10),
+            name: el.getAttribute('data-name') || '',
+            from: el.getAttribute('data-from') || '',
+            to: el.getAttribute('data-to') || '',
+        }),
+    })
+        .then(r => r.json())
+        .then(d => {
+            if (!d || !d.ok) throw new Error((d && d.error) || 'override failed');
+            const url = el.getAttribute('data-url') || '#';
+            form.innerHTML = `<span class="renovate-override-ok">✓ Override recorded.</span> `
+                + `<a class="q-mini-btn" href="${esc(url)}" target="_blank" rel="noopener">Review ⬈</a>`;
+            showToast('Override recorded — opening GitHub for the merge (branch protection still applies).');
+        })
+        .catch(err => {
+            el.disabled = false;
+            if (msg) msg.textContent = err.message;
+        });
 }
 
 export function syncArgoApp(el) {

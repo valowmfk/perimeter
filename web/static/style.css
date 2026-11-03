@@ -2242,6 +2242,83 @@ code {
     font-variant-numeric: tabular-nums;
 }
 
+/* ── Protected Stateful Tier — Layer 3 link-out guard ── */
+.q-mini-btn-danger {
+    border-color: rgba(239,68,68,0.5);
+    color: #fca5a5;
+}
+.q-mini-btn-danger:hover {
+    background: rgba(239,68,68,0.15);
+    border-color: rgba(239,68,68,0.8);
+}
+.renovate-blocked > td,
+.renovate-block-detail > td {
+    background: rgba(239,68,68,0.06);
+}
+.renovate-blocked td:first-child {
+    box-shadow: inset 2px 0 0 var(--red, #ef4444);
+}
+.renovate-block-reason {
+    padding: 2px 0 6px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+.renovate-block-reason code {
+    font-family: var(--font-mono);
+    color: var(--cyan-soft);
+    font-variant-numeric: tabular-nums;
+}
+.renovate-warn-reason {
+    padding: 2px 0 4px;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+.renovate-runbook {
+    white-space: nowrap;
+    color: var(--cyan);
+}
+.renovate-override {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 8px 10px;
+    margin: 2px 0 4px;
+    border: 1px solid rgba(239,68,68,0.35);
+    border-radius: 4px;
+    background: rgba(239,68,68,0.04);
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+.renovate-override[hidden] { display: none; }
+.renovate-override-type,
+.renovate-override-ack {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.renovate-override-type code {
+    font-family: var(--font-mono);
+    color: #fca5a5;
+}
+.renovate-override-input {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 3px 7px;
+    min-width: 160px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-primary);
+}
+.renovate-override-input:focus {
+    outline: none;
+    border-color: rgba(239,68,68,0.7);
+}
+.renovate-override-msg { color: #fca5a5; }
+.renovate-override-ok { color: var(--green, #10b981); font-weight: 600; }
+
 /* ══════════════════════════════════════════════════════════════
    UPDATE HISTORY — per-host recap (expandable run detail)
    ══════════════════════════════════════════════════════════════ */

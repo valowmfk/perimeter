@@ -1,0 +1,61 @@
+# Perimeter — Protected Stateful Tier (Layer 3 link-out guard)
+#
+# Declarative list of stateful workloads whose MAJOR version bumps are data
+# migrations, not tag swaps. For a matching dependency on the Updates page,
+# Perimeter replaces the one-click "Review ⬈" link-out with a blocked state
+# (reason + runbook) and a friction-ful typed-name override that, once cleared,
+# reveals the link and logs the override to the audit trail.
+#
+# Defense in depth — this file is only one layer:
+#   Layer 1  Renovate <major> pin   — don't PROPOSE it.
+#   Layer 2  GitHub required check  — can't MERGE it (the real wall; lives in
+#            + branch protection      valowmfk/k8s-homelab, not Perimeter).
+#   Layer 3  THIS guard             — a nudge BEFORE you reach GitHub. It guards
+#            Perimeter's surface only; a direct GitHub merge sails past it.
+#
+# Editing: this file ships dev -> public -> prod with the release. Edit it in
+# ~/automation-demo and deploy; a prod-local hand-edit is clobbered by the
+# git reset. Adding a workload is a config change, NO code change. A missing,
+# empty, or unparseable file disables the guard entirely (everything behaves as
+# it did before this feature) — fail-open on config, fail-safe on classify.
+#
+# Per entry:
+#   match:   case-insensitive SUBSTRING of the dependency name. `postgres`
+#            matches `ghcr.io/.../postgres`, `docker.io/library/postgres`, etc.
+#            Substring can over-match (e.g. `postgres-exporter`); that only ever
+#            over-BLOCKS, which is the safe direction — the override clears it.
+#   reason:  shown in the blocked state — WHY a major is dangerous here.
+#   runbook: URL to the upgrade procedure (shown as a Runbook ↗ link).
+#   block:   change types that are BLOCKED (default ["major"]).
+#   warn:    change types that get a caution banner but keep the link (default []).
+# Change types: major | minor | patch | digest | unknown. Classification is
+# positional semver with fail-safe = "major" when a target version is present
+# but unparseable; "unknown" when no target version could be parsed at all
+# (unknown is never blocked — there's nothing to act on).
+
+protected:
+  - match: postgres
+    reason: >-
+      A Postgres major (e.g. 15 -> 18) is an on-disk data migration, not a tag
+      swap. Rolling the image without pg_upgrade or dump+restore CrashLoopBackOffs
+      the pod and can leave the volume unreadable by the old binary.
+    runbook: https://github.com/valowmfk/k8s-homelab/blob/main/docs/runbooks/postgres-major-upgrade.md
+    block: ["major"]
+    warn: []
+
+  - match: mariadb
+    reason: >-
+      A MariaDB major upgrade rewrites the on-disk system tables. Skipping
+      mariadb-upgrade / the documented major-version steps risks a server that
+      won't start or silently incompatible grant tables.
+    runbook: https://github.com/valowmfk/k8s-homelab/blob/main/docs/runbooks/mariadb-major-upgrade.md
+    block: ["major"]
+    warn: []
+
+  - match: mysql
+    reason: >-
+      A MySQL major upgrade rewrites the data dictionary. An in-place image swap
+      without the documented upgrade path can corrupt it and block startup.
+    runbook: https://github.com/valowmfk/k8s-homelab/blob/main/docs/runbooks/mysql-major-upgrade.md
+    block: ["major"]
+    warn: []

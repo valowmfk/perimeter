@@ -34,6 +34,7 @@ import { initVipManager, loadVips, openVipBuilder, closeVipBuilder,
 import { loadUpdatesOverview, checkNodes, refreshArgocd,
          runNodeUpdate, refreshRuns, onUpdatesGroupChange,
          refreshRenovate, syncArgoApp, toggleRunDetail, viewRunLog,
+         renovateOverrideStart, renovateOverrideConfirm,
          createSchedule, toggleSchedule, deleteSchedule, onSchedFreqChange } from './modules/updates.js';
 
 /* ============================
@@ -220,6 +221,8 @@ const ACTION_HANDLERS = {
     'view-run-log':          (el) => viewRunLog(el),
     // Updates page actions (pod orchestrate)
     'refresh-renovate':      refreshRenovate,
+    'renovate-override-start':   (el) => renovateOverrideStart(el),
+    'renovate-override-confirm': (el) => renovateOverrideConfirm(el),
     'sync-argocd-app':       (el) => syncArgoApp(el),
     // Updates page actions (schedules)
     'create-schedule':       createSchedule,

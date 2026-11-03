@@ -17,6 +17,7 @@ import requests
 
 from axapi.utils import qlog, qlog_error
 from config import cfg
+from helpers import protection
 
 COMPONENT = "RENOVATE"
 API = "https://api.github.com"
@@ -133,9 +134,35 @@ def _parse_updates(body: str) -> list[dict]:
     return updates
 
 
+def _apply_protection(updates: list[dict]) -> dict:
+    """Attach a per-dep protection verdict (mutates each dep in place) and roll
+    it up to a PR-level guard. Layer 3: READ-ONLY — this decides what the UI
+    presents, never whether a merge happens. Returns
+    ``{blocked, warn, detail}`` where detail describes the dep driving the
+    worst verdict (a block outranks a warn)."""
+    blocked = warn = False
+    detail = None
+    for u in updates:
+        v = protection.evaluate(u.get("name"), u.get("current"), u.get("new"))
+        u["protection"] = v
+        if v["action"] == "block":
+            blocked = True
+            if detail is None or detail.get("action") != "block":
+                detail = {"action": "block", "name": u.get("name"),
+                          "from": u.get("current"), "to": u.get("new"),
+                          "reason": v["reason"], "runbook": v["runbook"]}
+        elif v["action"] == "warn" and detail is None:
+            warn = True
+            detail = {"action": "warn", "name": u.get("name"),
+                      "from": u.get("current"), "to": u.get("new"),
+                      "reason": v["reason"], "runbook": v["runbook"]}
+    return {"blocked": blocked, "warn": warn and not blocked, "detail": detail}
+
+
 def _normalize_pr(pr: dict) -> dict:
     labels = [l.get("name", "") for l in pr.get("labels", [])]
     updates = _parse_updates(pr.get("body") or "")
+    guard = _apply_protection(updates)
     return {
         "number": pr.get("number"),
         "title": pr.get("title", ""),
@@ -146,6 +173,9 @@ def _normalize_pr(pr: dict) -> dict:
         "labels": labels,
         "updates": updates,
         "grouped": len(updates) > 1,
+        "blocked": guard["blocked"],
+        "warn": guard["warn"],
+        "guard": guard["detail"],
     }
 
 

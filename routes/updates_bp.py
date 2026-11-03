@@ -231,6 +231,29 @@ def api_updates_renovate():
     return jsonify(renovate.get_data(force=request.args.get("refresh") == "1"))
 
 
+@updates_bp.route("/api/updates/renovate/override", methods=["POST"])
+def api_updates_renovate_override():
+    """Record a human's acknowledgement that they are overriding the Layer-3
+    protected-stateful guard for one PR.
+
+    This does NOT merge or write GitHub — Perimeter stays read-only (single-
+    writer rule). It logs who/what to the audit trail and lets the UI reveal the
+    link-out. The actual merge still happens on GitHub, where Layer-2 branch
+    protection applies regardless of this override."""
+    data = request.json or {}
+    try:
+        number = int(data.get("number"))
+    except (ValueError, TypeError):
+        return api_error("A valid PR number is required")
+    name = (data.get("name") or "").strip()
+    if not name or len(name) > 200:
+        return api_error("A workload name is required")
+    frm = (data.get("from") or "").strip()[:60]
+    to = (data.get("to") or "").strip()[:60]
+    audit_log("updates_renovate_override", f"PR#{number} {name}", f"{frm} -> {to}")
+    return jsonify({"ok": True})
+
+
 @updates_bp.route("/api/updates/argocd/sync", methods=["POST"])
 def api_updates_argocd_sync():
     """
